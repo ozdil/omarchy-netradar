@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="${DIR}/target/release/netradar-engine"
+BIN="${HOME}/.local/bin/netradar-engine"
+PROJECT_DIR="/home/ozdil/Projects/omarchy-netradar"
 
-if [[ ! -x "${BIN}" ]]; then
-    (cd "${DIR}" && cargo build --release) >/dev/null 2>&1
+if [[ ! -x "${BIN}" && -x "${PROJECT_DIR}/target/release/netradar-engine" ]]; then
+    BIN="${PROJECT_DIR}/target/release/netradar-engine"
 fi
 
 exec "${BIN}" --status

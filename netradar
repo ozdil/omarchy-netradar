@@ -1,15 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="${DIR}/target/release/netradar-engine"
+BIN="${HOME}/.local/bin/netradar-engine"
+PROJECT_DIR="/home/ozdil/Projects/omarchy-netradar"
+SHARE_DIR="${HOME}/.local/share/omarchy-netradar"
 
-if [[ ! -x "${BIN}" ]]; then
-    (cd "${DIR}" && cargo build --release)
+# Fallback to project target if not in ~/.local/bin
+if [[ ! -x "${BIN}" && -x "${PROJECT_DIR}/target/release/netradar-engine" ]]; then
+    BIN="${PROJECT_DIR}/target/release/netradar-engine"
 fi
 
-if [[ $# -eq 0 ]]; then
-    exec "${DIR}/netradar-dashboard"
+# Locate QML shell
+if [[ -f "${PROJECT_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${PROJECT_DIR}/qml/shell.qml"
+elif [[ -f "${SHARE_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${SHARE_DIR}/qml/shell.qml"
 else
+    SHELL_QML=""
+fi
+
+# If CLI arguments passed, delegate to binary directly
+if [[ $# -gt 0 ]]; then
     exec "${BIN}" "$@"
+fi
+
+# Try quickshell IPC toggle if already running
+if command -v quickshell >/dev/null 2>&1; then
+    if quickshell ipc call ozdil.netradar toggle >/dev/null 2>&1; then
+        exit 0
+    fi
+fi
+
+# Launch standalone GUI if quickshell exists
+if command -v quickshell >/dev/null 2>&1 && [[ -n "${SHELL_QML}" ]]; then
+    exec quickshell -p "${SHELL_QML}"
+else
+    exec "${BIN}" --status
 fi
