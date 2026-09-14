@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=NetRadar
+GenericName=Local Network Scanner & Device Radar
+Comment=Ultra-fast, secure local network scanner and device monitor for Omarchy Linux
+Exec=/usr/bin/netradar-dashboard
+Icon=network-wired
+Terminal=false
+Type=Application
+Categories=Network;System;Security;Monitor;
+Keywords=network;scanner;arp;ip;mac;radar;lan;omarchy;
+StartupNotify=true

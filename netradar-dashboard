@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="${DIR}/target/release/netradar-engine"
+
+# Ensure engine is compiled
+if [[ ! -x "${BIN}" ]]; then
+    echo "Building netradar-engine from source..."
+    (cd "${DIR}" && cargo build --release)
+fi
+
+# Try toggling Quickshell widget first if installed in Omarchy shell
+if [[ "${1:-}" != "--window" ]] && command -v quickshell >/dev/null 2>&1; then
+    if quickshell ipc -p /usr/share/omarchy/shell call ozdil.netradar toggle >/dev/null 2>&1; then
+        exit 0
+    fi
+fi
+
+# Launch standalone floating window
+if command -v quickshell >/dev/null 2>&1; then
+    exec quickshell -p "${DIR}/qml/shell.qml"
+else
+    echo "Quickshell not found, running CLI radar scan:"
+    exec "${BIN}" --status
+fi

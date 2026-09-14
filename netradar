@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="${DIR}/target/release/netradar-engine"
+
+if [[ ! -x "${BIN}" ]]; then
+    (cd "${DIR}" && cargo build --release)
+fi
+
+if [[ $# -eq 0 ]]; then
+    exec "${DIR}/netradar-dashboard"
+else
+    exec "${BIN}" "$@"
+fi
