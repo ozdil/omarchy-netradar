@@ -42,6 +42,22 @@ Panel {
     pingProc.running = true
   }
 
+  function openWeb(ip, port) {
+    var proto = (port === 443) ? "https" : "http"
+    var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
+    actionProc.command = ["xdg-open", url]
+    actionProc.running = true
+    root.copyNotice = "Tarayıcıda açılıyor: " + url
+    copyNoticeTimer.restart()
+  }
+
+  function openSsh(ip) {
+    actionProc.command = ["foot", "ssh", ip]
+    actionProc.running = true
+    root.copyNotice = "SSH Başlatıldı: " + ip
+    copyNoticeTimer.restart()
+  }
+
   function copyText(txt, label) {
     copyProc.command = ["wl-copy", txt]
     copyProc.running = true
@@ -131,6 +147,12 @@ Panel {
   // Clipboard copy process
   Process {
     id: copyProc
+    running: false
+    command: []
+  }
+
+  Process {
+    id: actionProc
     running: false
     command: []
   }
@@ -304,6 +326,40 @@ Panel {
               color: "#00e5ff"
               font.pixelSize: Style.font.caption
               font.bold: true
+            }
+
+            Rectangle {
+              implicitWidth: gwWebText.implicitWidth + Style.space(12)
+              implicitHeight: Style.space(22)
+              radius: Style.space(4)
+              color: Qt.rgba(0, 0.9, 1, 0.2)
+              border.color: "#00e5ff"
+              border.width: 1
+
+              RowLayout {
+                anchors.centerIn: parent
+                spacing: Style.space(4)
+                Text {
+                  textFormat: Text.PlainText
+                  text: "󰖟"
+                  font.pixelSize: Style.font.micro
+                  color: "#00e5ff"
+                }
+                Text {
+                  id: gwWebText
+                  textFormat: Text.PlainText
+                  text: "Web Aç"
+                  font.bold: true
+                  font.pixelSize: Style.font.micro
+                  color: root.bar ? root.bar.foreground : Color.foreground
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.openWeb(root.gateway, 80)
+              }
             }
 
             Item { Layout.fillWidth: true }
