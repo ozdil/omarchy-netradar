@@ -73,21 +73,21 @@ Rectangle {
         var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
         actionProc.command = ["xdg-open", url]
         actionProc.running = true
-        root.copyNotice = "Tarayıcıda açılıyor: " + url
+        root.copyNotice = I18n.t("opening_web") + url
         noticeTimer.restart()
     }
 
     function openSsh(ip) {
         actionProc.command = ["foot", "ssh", ip]
         actionProc.running = true
-        root.copyNotice = "SSH Terminali Başlatıldı: " + ip
+        root.copyNotice = I18n.t("opening_ssh") + ip
         noticeTimer.restart()
     }
 
     function copyText(txt, label) {
         copyProc.command = ["wl-copy", txt]
         copyProc.running = true
-        root.copyNotice = label + " kopyalandı: " + txt
+        root.copyNotice = label + " " + I18n.t("copied") + ": " + txt
         noticeTimer.restart()
     }
 
@@ -167,8 +167,8 @@ Rectangle {
                             "notify-send",
                             "-u", "normal",
                             "-i", "network-wired",
-                            "󰈀 NetRadar: Yeni Cihaz Algılandı",
-                            parsed.new_devices_detected + " yeni cihaz ağa katıldı!"
+                            "󰈀 NetRadar: New Device",
+                            parsed.new_devices_detected + " new device(s) joined the network!"
                         ]
                         notifyProc.running = true
                     }
@@ -224,7 +224,7 @@ Rectangle {
                             }
                         }
                         root.filterDevices()
-                        root.copyNotice = res.ip + ": " + res.services.length + " servis bulundu"
+                        root.copyNotice = res.ip + ": " + res.services.length + " " + I18n.t("services_found")
                         noticeTimer.restart()
                     }
                 } catch (e) {}
@@ -292,7 +292,7 @@ Rectangle {
                 spacing: 10
                 Text {
                     textFormat: Text.PlainText
-                    text: " GÜVENLİK UYARISI: Ağ Geçidi (Gateway) MAC adresi değişti! Olası ARP Zehirlenmesi / Sahte Yönlendirici!"
+                    text: " " + I18n.t("arp_warning")
                     font.family: Theme.fontFamily
                     font.bold: true
                     font.pixelSize: 12
@@ -331,7 +331,7 @@ Rectangle {
                     spacing: 8
                     Text {
                         textFormat: Text.PlainText
-                        text: "NetRadar"
+                        text: I18n.t("app_title")
                         font.family: Theme.fontFamily
                         font.pixelSize: 18
                         font.bold: true
@@ -339,7 +339,7 @@ Rectangle {
                     }
 
                     Rectangle {
-                        implicitWidth: devBadge.implicitWidth + 12
+                        implicitWidth: devBadge.implicitWidth + 14
                         implicitHeight: 20
                         radius: 10
                         color: Theme.accent
@@ -348,7 +348,7 @@ Rectangle {
                             id: devBadge
                             anchors.centerIn: parent
                             textFormat: Text.PlainText
-                            text: root.deviceCount + " Cihaz"
+                            text: root.deviceCount + " " + I18n.t("devices")
                             font.pixelSize: 11
                             font.bold: true
                             color: Theme.bgDark
@@ -357,7 +357,7 @@ Rectangle {
 
                     // Traffic Speed Pill
                     Rectangle {
-                        implicitWidth: speedText.implicitWidth + 14
+                        implicitWidth: speedText.implicitWidth + 16
                         implicitHeight: 20
                         radius: 10
                         color: Theme.bgSurface
@@ -378,17 +378,64 @@ Rectangle {
 
                 Text {
                     textFormat: Text.PlainText
-                    text: "Arayüz: " + root.iface + " (" + root.localIp + "/" + root.subnetMask + ") • Ağ Geçidi: " + root.gateway + " • Süre: " + root.scanDurationMs + " ms"
+                    text: I18n.t("interface") + ": " + root.iface + " (" + root.localIp + "/" + root.subnetMask + ") • " + I18n.t("gateway") + ": " + root.gateway + " • " + I18n.t("duration") + ": " + root.scanDurationMs + " ms"
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
                     color: Theme.textMuted
                 }
             }
 
+            // Language Switch Button [ EN | TR ]
+            Rectangle {
+                implicitWidth: 72
+                implicitHeight: 36
+                radius: Theme.radiusMd
+                color: Theme.bgSurface
+                border.color: Theme.border
+                border.width: 1
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    Text {
+                        textFormat: Text.PlainText
+                        text: "EN"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.bold: I18n.lang === "en"
+                        color: I18n.lang === "en" ? Theme.accent : Theme.textDim
+                    }
+
+                    Text {
+                        textFormat: Text.PlainText
+                        text: "•"
+                        font.pixelSize: 9
+                        color: Theme.border
+                    }
+
+                    Text {
+                        textFormat: Text.PlainText
+                        text: "TR"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.bold: I18n.lang === "tr"
+                        color: I18n.lang === "tr" ? Theme.accent : Theme.textDim
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: I18n.toggleLang()
+                }
+            }
+
             // Refresh / Scan Button
             Button {
                 id: refreshBtn
-                implicitWidth: 120
+                implicitWidth: scanBtnRow.implicitWidth + 24
                 implicitHeight: 38
                 onClicked: root.scan()
 
@@ -398,8 +445,9 @@ Rectangle {
                 }
 
                 contentItem: RowLayout {
+                    id: scanBtnRow
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 8
                     Text {
                         textFormat: Text.PlainText
                         text: ""
@@ -420,7 +468,7 @@ Rectangle {
                     }
                     Text {
                         textFormat: Text.PlainText
-                        text: root.isScanning ? "Taranıyor..." : "Ağı Tara"
+                        text: root.isScanning ? I18n.t("scanning") : I18n.t("scan_network")
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
                         font.bold: true
@@ -461,7 +509,7 @@ Rectangle {
                     TextField {
                         id: searchInput
                         Layout.fillWidth: true
-                        placeholderText: "IP, MAC, Takma Ad, Hostname veya Üretici Ara..."
+                        placeholderText: I18n.t("search_placeholder")
                         placeholderTextColor: Theme.textDim
                         color: Theme.textMain
                         font.family: Theme.fontFamily
@@ -495,15 +543,15 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { id: "all", label: "Tümü" },
-                        { id: "router", label: "Yönlendirici" },
-                        { id: "pc", label: "Bilgisayar" },
-                        { id: "phone", label: "Telefon" },
-                        { id: "iot", label: "IoT" }
+                        { id: "all", labelKey: "cat_all" },
+                        { id: "router", labelKey: "cat_router" },
+                        { id: "pc", labelKey: "cat_pc" },
+                        { id: "phone", labelKey: "cat_phone" },
+                        { id: "iot", labelKey: "cat_iot" }
                     ]
 
                     delegate: Rectangle {
-                        implicitWidth: chipText.implicitWidth + 16
+                        implicitWidth: chipText.implicitWidth + 20
                         implicitHeight: 36
                         radius: Theme.radiusSm
                         color: root.selectedCategory === modelData.id ? Theme.accent : (chipMouse.containsMouse ? Theme.bgCardHover : Theme.bgSurface)
@@ -514,7 +562,7 @@ Rectangle {
                             id: chipText
                             anchors.centerIn: parent
                             textFormat: Text.PlainText
-                            text: modelData.label
+                            text: I18n.t(modelData.labelKey)
                             font.family: Theme.fontFamily
                             font.pixelSize: 12
                             font.bold: root.selectedCategory === modelData.id
@@ -584,7 +632,7 @@ Rectangle {
                         id: cardLayout
                         anchors.fill: parent
                         anchors.margins: 14
-                        spacing: 10
+                        spacing: 12
 
                         // Main Info Row
                         RowLayout {
@@ -676,8 +724,8 @@ Rectangle {
                                     // Role Badges
                                     Rectangle {
                                         visible: modelData.is_gateway
-                                        implicitWidth: gwBadge.implicitWidth + 8
-                                        implicitHeight: 18
+                                        implicitWidth: gwBadge.implicitWidth + 14
+                                        implicitHeight: 20
                                         radius: 4
                                         color: Theme.accent
 
@@ -685,7 +733,7 @@ Rectangle {
                                             id: gwBadge
                                             anchors.centerIn: parent
                                             textFormat: Text.PlainText
-                                            text: "AĞ GEÇİDİ"
+                                            text: I18n.t("badge_gateway")
                                             font.pixelSize: 9
                                             font.bold: true
                                             color: Theme.bgDark
@@ -694,8 +742,8 @@ Rectangle {
 
                                     Rectangle {
                                         visible: modelData.is_local
-                                        implicitWidth: hostBadge.implicitWidth + 8
-                                        implicitHeight: 18
+                                        implicitWidth: hostBadge.implicitWidth + 14
+                                        implicitHeight: 20
                                         radius: 4
                                         color: Theme.accentGreen
 
@@ -703,7 +751,7 @@ Rectangle {
                                             id: hostBadge
                                             anchors.centerIn: parent
                                             textFormat: Text.PlainText
-                                            text: "BU BİLGİSAYAR"
+                                            text: I18n.t("badge_this_pc")
                                             font.pixelSize: 9
                                             font.bold: true
                                             color: Theme.bgDark
@@ -713,8 +761,8 @@ Rectangle {
                                     // New / Rogue Device Alert Badge
                                     Rectangle {
                                         visible: modelData.is_new
-                                        implicitWidth: newBadge.implicitWidth + 8
-                                        implicitHeight: 18
+                                        implicitWidth: newBadge.implicitWidth + 14
+                                        implicitHeight: 20
                                         radius: 4
                                         color: Theme.accentOrange
 
@@ -722,7 +770,7 @@ Rectangle {
                                             id: newBadge
                                             anchors.centerIn: parent
                                             textFormat: Text.PlainText
-                                            text: "YENİ CİHAZ"
+                                            text: I18n.t("badge_new")
                                             font.pixelSize: 9
                                             font.bold: true
                                             color: Theme.bgDark
@@ -732,7 +780,7 @@ Rectangle {
 
                                 Text {
                                     textFormat: Text.PlainText
-                                    text: modelData.vendor || "Bilinmeyen Üretici"
+                                    text: modelData.vendor || I18n.t("unknown_vendor")
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 12
                                     color: Theme.textMuted
@@ -840,7 +888,7 @@ Rectangle {
 
                             // Ping / Latency Pill
                             Rectangle {
-                                implicitWidth: 70
+                                implicitWidth: Math.max(68, latText.implicitWidth + 16)
                                 implicitHeight: 32
                                 radius: Theme.radiusSm
                                 color: modelData.latency_ms !== null ? Qt.rgba(0.65, 0.85, 0.58, 0.15) : Theme.bgSurface
@@ -848,9 +896,10 @@ Rectangle {
                                 border.width: 1
 
                                 Text {
+                                    id: latText
                                     anchors.centerIn: parent
                                     textFormat: Text.PlainText
-                                    text: modelData.latency_ms !== null && modelData.latency_ms !== undefined ? (modelData.latency_ms.toFixed(1) + " ms") : "Ping"
+                                    text: modelData.latency_ms !== null && modelData.latency_ms !== undefined ? (modelData.latency_ms.toFixed(1) + " ms") : I18n.t("btn_ping")
                                     font.pixelSize: 11
                                     font.bold: true
                                     color: modelData.latency_ms !== null ? Theme.accentGreen : Theme.textMuted
@@ -872,34 +921,34 @@ Rectangle {
                             }
                         }
 
-                        // Services & Direct Connect Action Bar
+                        // Services & Direct Connect Action Bar (Generous padding & dynamic sizing)
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: 10
 
-                            // Service scan on-demand button
+                            // Service scan on-demand button (Fully dynamic with 22px padding)
                             Rectangle {
-                                implicitWidth: probeText.implicitWidth + 14
-                                implicitHeight: 26
+                                implicitWidth: probeRow.implicitWidth + 24
+                                implicitHeight: 28
                                 radius: Theme.radiusSm
                                 color: probeMouse.containsMouse ? Theme.bgCardHover : Theme.bgSurface
                                 border.color: Theme.border
                                 border.width: 1
 
                                 RowLayout {
+                                    id: probeRow
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 6
                                     Text {
                                         textFormat: Text.PlainText
                                         text: "󰈀"
-                                        font.pixelSize: 11
+                                        font.pixelSize: 12
                                         color: Theme.accent
                                     }
                                     Text {
-                                        id: probeText
                                         textFormat: Text.PlainText
-                                        text: (modelData.services && modelData.services.length > 0) ? "Servisler" : "Portları Tara"
-                                        font.pixelSize: 10
+                                        text: (modelData.services && modelData.services.length > 0) ? I18n.t("btn_services") : I18n.t("btn_scan_ports")
+                                        font.pixelSize: 11
                                         font.bold: true
                                         color: Theme.textMain
                                     }
@@ -918,21 +967,23 @@ Rectangle {
                             Repeater {
                                 model: modelData.services || []
                                 delegate: Rectangle {
-                                    implicitWidth: sText.implicitWidth + 10
-                                    implicitHeight: 24
-                                    radius: 4
+                                    implicitWidth: sRow.implicitWidth + 18
+                                    implicitHeight: 28
+                                    radius: Theme.radiusSm
                                     color: Qt.rgba(0, 0.9, 1, 0.12)
                                     border.color: Theme.accent
                                     border.width: 1
 
-                                    Text {
-                                        id: sText
+                                    RowLayout {
+                                        id: sRow
                                         anchors.centerIn: parent
-                                        textFormat: Text.PlainText
-                                        text: modelData.port + " " + modelData.name
-                                        font.pixelSize: 9
-                                        font.bold: true
-                                        color: Theme.accent
+                                        Text {
+                                            textFormat: Text.PlainText
+                                            text: modelData.port + " " + modelData.name
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            color: Theme.accent
+                                        }
                                     }
                                 }
                             }
@@ -946,27 +997,29 @@ Rectangle {
                                     }
                                     return false
                                 }
-                                implicitWidth: 120
-                                implicitHeight: 26
+                                implicitWidth: webRow.implicitWidth + 24
+                                implicitHeight: 28
                                 background: Rectangle {
                                     color: Qt.rgba(0, 0.9, 1, 0.2)
                                     border.color: Theme.accent
+                                    border.width: 1
                                     radius: Theme.radiusSm
                                 }
                                 contentItem: RowLayout {
+                                    id: webRow
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 6
                                     Text {
                                         textFormat: Text.PlainText
                                         text: "󰖟"
-                                        font.pixelSize: 11
+                                        font.pixelSize: 12
                                         color: Theme.accent
                                     }
                                     Text {
                                         textFormat: Text.PlainText
-                                        text: "Web Arayüzü"
+                                        text: I18n.t("btn_web_ui")
                                         font.bold: true
-                                        font.pixelSize: 10
+                                        font.pixelSize: 11
                                         color: Theme.textMain
                                     }
                                 }
@@ -991,27 +1044,29 @@ Rectangle {
                                     }
                                     return false
                                 }
-                                implicitWidth: 100
-                                implicitHeight: 26
+                                implicitWidth: sshRow.implicitWidth + 24
+                                implicitHeight: 28
                                 background: Rectangle {
                                     color: Qt.rgba(0.65, 0.85, 0.58, 0.2)
                                     border.color: Theme.accentGreen
+                                    border.width: 1
                                     radius: Theme.radiusSm
                                 }
                                 contentItem: RowLayout {
+                                    id: sshRow
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 6
                                     Text {
                                         textFormat: Text.PlainText
                                         text: "󰞷"
-                                        font.pixelSize: 11
+                                        font.pixelSize: 12
                                         color: Theme.accentGreen
                                     }
                                     Text {
                                         textFormat: Text.PlainText
-                                        text: "SSH Bağlan"
+                                        text: I18n.t("btn_ssh")
                                         font.bold: true
-                                        font.pixelSize: 10
+                                        font.pixelSize: 11
                                         color: Theme.textMain
                                     }
                                 }
@@ -1029,7 +1084,7 @@ Rectangle {
 
             Text {
                 textFormat: Text.PlainText
-                text: "󰄬 Omarchy Linux Güvenlik Standartları (AGENTS.md) • Beyaz Şapka Savunmacı Radar"
+                text: "󰄬 " + I18n.t("footer_security")
                 font.pixelSize: 11
                 color: Theme.textDim
             }
