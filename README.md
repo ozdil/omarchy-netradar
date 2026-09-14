@@ -1,5 +1,7 @@
 # NetRadar 󰈀
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-Support_Development-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ozdil)
+
 > **Ultra-fast, minimalist, and secure local network scanner & device radar for Omarchy Linux.**
 
 Built natively with **Quickshell (QML)** and a hardened **Rust Engine (`netradar-engine`)**, NetRadar discovers and monitors devices on your local Wi-Fi and Ethernet networks with zero root privileges, instant manufacturer identification, and complete Omarchy dynamic OLED theming.
@@ -126,6 +128,14 @@ netradar-engine --set-alias "AC:71:2E:95:48:56" "Ana Ofis Router"
 # Launch GUI Dashboard
 netradar
 ```
+
+---
+
+## Support & Sponsorship
+
+If you find NetRadar useful and want to support independent, open-source Linux development:
+
+<a href="https://buymeacoffee.com/ozdil" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 50px !important;width: 180px !important;" ></a>
 
 ---
 
