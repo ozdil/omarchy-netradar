@@ -59,6 +59,7 @@ pub struct DeviceRegistry {
     pub trusted_macs: Vec<String>,
     pub known_macs: Vec<String>,
     pub gateway_mac: Option<String>,
+    pub gateway_ip: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,18 +119,39 @@ pub fn save_registry(registry: &DeviceRegistry) -> io::Result<()> {
 
 /// Sets or clears custom alias for a MAC.
 pub fn save_alias(mac: &str, alias: &str) -> io::Result<()> {
+    if !security::is_valid_mac(mac) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid MAC address format (must be 6 hex octets)",
+        ));
+    }
+    let clean_alias = alias.trim();
+    if !clean_alias.is_empty() && !security::is_valid_alias(clean_alias) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid alias: maximum 64 characters, no control characters allowed",
+        ));
+    }
+
     let mut reg = load_registry();
     let clean_mac = mac.to_uppercase();
-    if alias.trim().is_empty() {
+    if clean_alias.is_empty() {
         reg.aliases.remove(&clean_mac);
     } else {
-        reg.aliases.insert(clean_mac, alias.trim().to_string());
+        reg.aliases.insert(clean_mac, clean_alias.to_string());
     }
     save_registry(&reg)
 }
 
 /// Toggles or sets trust status for a device MAC.
 pub fn set_trust(mac: &str, trust: bool) -> io::Result<()> {
+    if !security::is_valid_mac(mac) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid MAC address format (must be 6 hex octets)",
+        ));
+    }
+
     let mut reg = load_registry();
     let clean_mac = mac.to_uppercase();
     if trust {
@@ -143,10 +165,15 @@ pub fn set_trust(mac: &str, trust: bool) -> io::Result<()> {
 }
 
 /// Probes common white-hat management ports with short non-intrusive TCP timeout.
+/// Strictly limited to private/local IPv4 addresses to prevent accidental external network scanning.
 pub fn probe_services(ip_str: &str) -> Vec<ServicePort> {
     let Ok(ip) = ip_str.parse::<Ipv4Addr>() else {
         return Vec::new();
     };
+
+    if !security::is_private_or_local_ipv4(ip) {
+        return Vec::new();
+    }
 
     let target_ports = [
         (80, "HTTP"),
@@ -175,6 +202,10 @@ pub fn probe_services(ip_str: &str) -> Vec<ServicePort> {
 
 /// Reads instant byte traffic for network interface from /proc/net/dev.
 pub fn read_traffic_stats(iface: &str) -> Option<TrafficStats> {
+    if !security::is_safe_iface(iface) {
+        return None;
+    }
+
     let content = fs::read_to_string("/proc/net/dev").ok()?;
     for line in content.lines() {
         let line = line.trim();
@@ -253,21 +284,31 @@ pub fn resolve_hostname(ip_str: &str) -> String {
 }
 
 /// Performs a non-blocking ping / latency probe for an IP address.
+/// Strictly limited to private/local IPv4 addresses and protected against argument injection.
 pub fn measure_latency(ip_str: &str) -> Option<f32> {
+    let Ok(ip) = ip_str.parse::<Ipv4Addr>() else {
+        return None;
+    };
+
+    if !security::is_private_or_local_ipv4(ip) {
+        return None;
+    }
+
+    let ip_string = ip.to_string();
     let start = Instant::now();
+
     if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
         let _ = socket.set_read_timeout(Some(Duration::from_millis(150)));
         let _ = socket.set_write_timeout(Some(Duration::from_millis(150)));
-        if let Ok(target) = format!("{}:5353", ip_str).parse::<SocketAddr>() {
-            if socket.connect(target).is_ok() {
-                let _ = socket.send(&[0]);
-            }
+        let target = SocketAddr::new(IpAddr::V4(ip), 5353);
+        if socket.connect(target).is_ok() {
+            let _ = socket.send(&[0]);
         }
     }
 
     let output = security::run_with_monotonic_deadline(
         "ping",
-        &["-c", "1", "-W", "1", "-q", ip_str],
+        &["-c", "1", "-W", "1", "-q", "--", &ip_string],
         Duration::from_millis(350),
     );
 
@@ -387,8 +428,16 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
             continue;
         }
 
+        // Validate IPv4 and restrict to private/local ranges
+        let Ok(parsed_ip) = ip.parse::<Ipv4Addr>() else {
+            continue;
+        };
+        if !security::is_private_or_local_ipv4(parsed_ip) {
+            continue;
+        }
+
         let mac = neigh.lladdr.unwrap_or_else(|| "00:00:00:00:00:00".to_string()).to_uppercase();
-        if mac == "00:00:00:00:00:00" || mac.is_empty() {
+        if mac == "00:00:00:00:00:00" || mac.is_empty() || !security::is_valid_mac(&mac) {
             continue;
         }
 
@@ -452,16 +501,16 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         }
     }
 
-    // ARP Spoofing detection: compare gateway MAC
+    // ARP Spoofing detection: compare gateway MAC for the same gateway IP
     let mut arp_spoof_warning = false;
-    if !gateway_mac.is_empty() {
-        if let Some(ref saved_gw) = reg.gateway_mac {
-            if saved_gw != &gateway_mac {
+    if !gateway_mac.is_empty() && !gateway.is_empty() {
+        if let (Some(ref saved_ip), Some(ref saved_mac)) = (&reg.gateway_ip, &reg.gateway_mac) {
+            if saved_ip == &gateway && saved_mac != &gateway_mac {
                 arp_spoof_warning = true;
             }
-        } else {
-            reg.gateway_mac = Some(gateway_mac.clone());
         }
+        reg.gateway_ip = Some(gateway.clone());
+        reg.gateway_mac = Some(gateway_mac.clone());
     }
 
     // Save updated known MACs

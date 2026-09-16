@@ -10,6 +10,9 @@ use std::time::{Duration, Instant};
 /// Maximum pipe read buffer limit (64 KiB) as mandated by Omarchy Security Architecture.
 pub const MAX_BUFFER_CAP: usize = 64 * 1024;
 
+/// Maximum allowable size for persistent registry files (1 MiB).
+pub const MAX_REGISTRY_FILE_SIZE: u64 = 1024 * 1024;
+
 /// RAII Guard ensuring subprocess groups are reaped unconditionally upon drop.
 pub struct ProcessGroupGuard {
     pub child: Option<Child>,
@@ -231,6 +234,7 @@ pub fn atomic_write_0600(target_path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 /// Reads a sensitive file safely, validating it is a regular file with 0600 mode owned by current user.
+/// Strictly enforces maximum 1 MiB size cap to prevent memory exhaustion / DoS attacks.
 pub fn safe_read_0600(path: &Path) -> io::Result<Vec<u8>> {
     let meta = fs::symlink_metadata(path)?;
     if meta.file_type().is_symlink() {
@@ -246,8 +250,73 @@ pub fn safe_read_0600(path: &Path) -> io::Result<Vec<u8>> {
         ));
     }
 
-    let mut file = File::open(path)?;
-    let mut data = Vec::new();
-    file.read_to_end(&mut data)?;
+    if meta.len() > MAX_REGISTRY_FILE_SIZE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "File size exceeds 1 MiB maximum threshold",
+        ));
+    }
+
+    let file = File::open(path)?;
+    let mut data = Vec::with_capacity(meta.len().min(MAX_REGISTRY_FILE_SIZE) as usize);
+    let mut bounded_reader = file.take(MAX_REGISTRY_FILE_SIZE + 1);
+    bounded_reader.read_to_end(&mut data)?;
+
+    if data.len() as u64 > MAX_REGISTRY_FILE_SIZE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "File stream expanded beyond 1 MiB cap",
+        ));
+    }
+
     Ok(data)
 }
+
+/// Validates IEEE 802 MAC address format (e.g. AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF).
+pub fn is_valid_mac(mac: &str) -> bool {
+    let trimmed = mac.trim();
+    let parts: Vec<&str> = if trimmed.contains(':') {
+        trimmed.split(':').collect()
+    } else if trimmed.contains('-') {
+        trimmed.split('-').collect()
+    } else {
+        return false;
+    };
+
+    if parts.len() != 6 {
+        return false;
+    }
+
+    for part in parts {
+        if part.len() != 2 || !part.chars().all(|c| c.is_ascii_hexdigit()) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validates device alias (max 64 chars, printable UTF-8, no control characters).
+pub fn is_valid_alias(alias: &str) -> bool {
+    let trimmed = alias.trim();
+    if trimmed.is_empty() || trimmed.chars().count() > 64 {
+        return false;
+    }
+    trimmed.chars().all(|c| !c.is_control())
+}
+
+/// Validates network interface name (alphanumeric, dots, dashes, underscores, max 16 chars).
+pub fn is_safe_iface(iface: &str) -> bool {
+    let trimmed = iface.trim();
+    if trimmed.is_empty() || trimmed.len() > 16 {
+        return false;
+    }
+    trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+/// Checks if IPv4 address is in private (RFC 1918), loopback, or link-local range.
+pub fn is_private_or_local_ipv4(ip: std::net::Ipv4Addr) -> bool {
+    ip.is_loopback() || ip.is_private() || ip.is_link_local()
+}
+

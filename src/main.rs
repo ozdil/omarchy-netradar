@@ -37,6 +37,14 @@ fn main() {
                     process::exit(1);
                 }
                 let ip = &args[2];
+                let Ok(parsed_ip) = ip.parse::<std::net::Ipv4Addr>() else {
+                    eprintln!("Error: Invalid IPv4 address for --ping");
+                    process::exit(1);
+                };
+                if !security::is_private_or_local_ipv4(parsed_ip) {
+                    eprintln!("Error: Target IP must be in private or local subnet");
+                    process::exit(1);
+                }
                 let lat = scanner::measure_latency(ip);
                 println!(
                     "{{\"ip\":\"{}\",\"latency_ms\":{}}}",
@@ -51,6 +59,14 @@ fn main() {
                     process::exit(1);
                 }
                 let ip = &args[2];
+                let Ok(parsed_ip) = ip.parse::<std::net::Ipv4Addr>() else {
+                    eprintln!("Error: Invalid IPv4 address for --probe");
+                    process::exit(1);
+                };
+                if !security::is_private_or_local_ipv4(parsed_ip) {
+                    eprintln!("Error: Target IP must be in private or local subnet");
+                    process::exit(1);
+                }
                 let services = scanner::probe_services(ip);
                 if let Ok(json) = serde_json::to_string(&services) {
                     println!("{{\"ip\":\"{}\",\"services\":{}}}", ip, json);
@@ -66,6 +82,14 @@ fn main() {
                 }
                 let mac = &args[2];
                 let alias = &args[3];
+                if !security::is_valid_mac(mac) {
+                    eprintln!("Error: Invalid MAC address format (expected AA:BB:CC:DD:EE:FF)");
+                    process::exit(1);
+                }
+                if !alias.trim().is_empty() && !security::is_valid_alias(alias) {
+                    eprintln!("Error: Invalid alias (maximum 64 characters, no control characters)");
+                    process::exit(1);
+                }
                 if let Err(e) = scanner::save_alias(mac, alias) {
                     eprintln!("Failed to save alias: {}", e);
                     process::exit(1);
@@ -79,7 +103,14 @@ fn main() {
                     process::exit(1);
                 }
                 let mac = &args[2];
-                let _ = scanner::set_trust(mac, true);
+                if !security::is_valid_mac(mac) {
+                    eprintln!("Error: Invalid MAC address format");
+                    process::exit(1);
+                }
+                if let Err(e) = scanner::set_trust(mac, true) {
+                    eprintln!("Failed to set trust: {}", e);
+                    process::exit(1);
+                }
                 println!("{{\"success\":true,\"mac\":\"{}\",\"is_trusted\":true}}", mac);
                 return;
             }
@@ -89,12 +120,23 @@ fn main() {
                     process::exit(1);
                 }
                 let mac = &args[2];
-                let _ = scanner::set_trust(mac, false);
+                if !security::is_valid_mac(mac) {
+                    eprintln!("Error: Invalid MAC address format");
+                    process::exit(1);
+                }
+                if let Err(e) = scanner::set_trust(mac, false) {
+                    eprintln!("Failed to remove trust: {}", e);
+                    process::exit(1);
+                }
                 println!("{{\"success\":true,\"mac\":\"{}\",\"is_trusted\":false}}", mac);
                 return;
             }
             "--traffic" => {
                 let iface = args.get(2).map(|s| s.as_str()).unwrap_or("wlo1");
+                if !security::is_safe_iface(iface) {
+                    eprintln!("Error: Invalid network interface name");
+                    process::exit(1);
+                }
                 let stats = scanner::read_traffic_stats(iface);
                 if let Ok(json) = serde_json::to_string(&stats) {
                     println!("{}", json);
@@ -106,7 +148,7 @@ fn main() {
             "--status" => {
                 match scanner::perform_scan(false) {
                     Ok(res) => {
-                        let spoof = if res.arp_spoof_warning { " ⚠️ ARP SPOOFING ALERTI!" } else { "" };
+                        let spoof = if res.arp_spoof_warning { " [ARP SPOOFING ALERTI!]" } else { "" };
                         println!(
                             "󰈀 NetRadar: {} devices on {} ({}/{}) • GW: {}{}",
                             res.device_count, res.interface, res.local_ip, res.subnet_mask, res.gateway, spoof

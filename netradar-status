@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="${HOME}/.local/bin/netradar-engine"
-PROJECT_DIR="/home/ozdil/Projects/omarchy-netradar"
 
-if [[ ! -x "${BIN}" && -x "${PROJECT_DIR}/target/release/netradar-engine" ]]; then
-    BIN="${PROJECT_DIR}/target/release/netradar-engine"
+if [[ ! -x "${BIN}" ]]; then
+    if [[ -x "/usr/bin/netradar-engine" ]]; then
+        BIN="/usr/bin/netradar-engine"
+    elif [[ -x "${SCRIPT_DIR}/target/release/netradar-engine" ]]; then
+        BIN="${SCRIPT_DIR}/target/release/netradar-engine"
+    fi
 fi
 
 exec "${BIN}" --status

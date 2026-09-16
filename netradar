@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="${HOME}/.local/bin/netradar-engine"
-PROJECT_DIR="/home/ozdil/Projects/omarchy-netradar"
 SHARE_DIR="${HOME}/.local/share/omarchy-netradar"
+SYS_SHARE_DIR="/usr/share/omarchy-netradar"
 
-# Fallback to project target if not in ~/.local/bin
-if [[ ! -x "${BIN}" && -x "${PROJECT_DIR}/target/release/netradar-engine" ]]; then
-    BIN="${PROJECT_DIR}/target/release/netradar-engine"
+# Fallback to system bin or project target if not in ~/.local/bin
+if [[ ! -x "${BIN}" ]]; then
+    if [[ -x "/usr/bin/netradar-engine" ]]; then
+        BIN="/usr/bin/netradar-engine"
+    elif [[ -x "${SCRIPT_DIR}/target/release/netradar-engine" ]]; then
+        BIN="${SCRIPT_DIR}/target/release/netradar-engine"
+    fi
 fi
 
 # Locate QML shell
-if [[ -f "${PROJECT_DIR}/qml/shell.qml" ]]; then
-    SHELL_QML="${PROJECT_DIR}/qml/shell.qml"
+if [[ -f "${SCRIPT_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${SCRIPT_DIR}/qml/shell.qml"
+elif [[ -f "${SYS_SHARE_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${SYS_SHARE_DIR}/qml/shell.qml"
 elif [[ -f "${SHARE_DIR}/qml/shell.qml" ]]; then
     SHELL_QML="${SHARE_DIR}/qml/shell.qml"
 else

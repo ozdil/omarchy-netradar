@@ -1,16 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "ozdil.netradar",
-  "name": "netradar",
-  "description": "Ultra-fast, secure local network scanner & device radar for Omarchy Linux",
+  "name": "NetRadar",
   "version": "1.0.0",
-  "author": "Ozan Özdil",
+  "author": "Ozan Özdil (ozdil)",
   "license": "MIT",
+  "description": "Ultra-fast, secure local network scanner and device radar for Omarchy Linux",
   "kinds": ["bar-widget"],
+  "activation": "on-demand",
   "entryPoints": {
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "defaultSection": "right"
+    "displayName": "NetRadar",
+    "description": "Ultra-fast local network scanner, device discovery, and ping monitor.",
+    "category": "Network",
+    "defaultSection": "right",
+    "aliases": ["netradar", "network", "radar", "scanner", "devices", "lan"],
+    "allowMultiple": false
   }
 }
+

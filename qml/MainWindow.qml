@@ -36,7 +36,15 @@ Rectangle {
     property real lastTrafficTime: 0
 
     function resolveEnginePath() {
-        return "/home/ozdil/.local/bin/netradar-engine"
+        var home = Quickshell.env("HOME") || ""
+        if (home.length > 0) {
+            return home + "/.local/bin/netradar-engine"
+        }
+        return "/usr/bin/netradar-engine"
+    }
+
+    function isValidIp(ip) {
+        return typeof ip === "string" && /^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip.trim())
     }
 
     function scan() {
@@ -47,11 +55,13 @@ Rectangle {
     }
 
     function ping(ip) {
+        if (!isValidIp(ip)) return
         pingProc.command = [root.resolveEnginePath(), "--ping", ip]
         pingProc.running = true
     }
 
     function probe(ip) {
+        if (!isValidIp(ip)) return
         probeProc.command = [root.resolveEnginePath(), "--probe", ip]
         probeProc.running = true
     }
@@ -69,6 +79,7 @@ Rectangle {
     }
 
     function openWeb(ip, port) {
+        if (!isValidIp(ip) || typeof port !== "number" || port < 1 || port > 65535) return
         var proto = (port === 443) ? "https" : "http"
         var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
         actionProc.command = ["xdg-open", url]
@@ -78,7 +89,8 @@ Rectangle {
     }
 
     function openSsh(ip) {
-        actionProc.command = ["foot", "ssh", ip]
+        if (!isValidIp(ip)) return
+        actionProc.command = ["foot", "ssh", "--", ip]
         actionProc.running = true
         root.copyNotice = I18n.t("opening_ssh") + ip
         noticeTimer.restart()
