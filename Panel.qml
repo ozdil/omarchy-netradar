@@ -25,6 +25,7 @@ Panel {
   property string searchQuery: ""
   property bool isScanning: false
   property string copyNotice: ""
+  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font")
 
   function resolveEnginePath() {
     return Qt.resolvedUrl("netradar-engine").toString().replace(/^file:\/\//, "")
@@ -255,7 +256,7 @@ Panel {
             textFormat: Text.PlainText
             text: "󰈀"
             color: "#00e5ff"
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.family: root.fontFamily
             font.pixelSize: Style.font.display
           }
 
@@ -267,7 +268,7 @@ Panel {
               textFormat: Text.PlainText
               text: "NetRadar"
               color: root.bar ? root.bar.foreground : Color.foreground
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.family: root.fontFamily
               font.pixelSize: Style.font.heading
               font.bold: true
             }
@@ -276,6 +277,7 @@ Panel {
               textFormat: Text.PlainText
               text: root.deviceCount + " Cihaz • " + root.iface + " (" + root.localIp + "/" + root.subnetMask + ")"
               color: Color.muted
+              font.family: root.fontFamily
               font.pixelSize: Style.font.subtext
             }
           }
@@ -297,7 +299,7 @@ Panel {
               anchors.centerIn: parent
               textFormat: Text.PlainText
               text: ""
-              font.family: Style.font.family
+              font.family: root.fontFamily
               font.pixelSize: Style.font.heading
               color: root.isScanning ? "#00e5ff" : Color.muted
               rotation: root.isScanning ? spinAnim.currentAngle : 0
@@ -561,7 +563,7 @@ Panel {
                       textFormat: Text.PlainText
                       text: "IP: " + modelData.ip
                       font.pixelSize: Style.font.caption
-                      font.family: Style.font.mono
+                      font.family: root.fontFamily
                       color: root.bar ? root.bar.foreground : Color.foreground
                     }
                     Text {
@@ -595,7 +597,7 @@ Panel {
                       textFormat: Text.PlainText
                       text: modelData.mac
                       font.pixelSize: Style.font.micro
-                      font.family: Style.font.mono
+                      font.family: root.fontFamily
                       color: Color.muted
                     }
                     Text {
