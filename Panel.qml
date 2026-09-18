@@ -25,7 +25,7 @@ Panel {
   property string searchQuery: ""
   property bool isScanning: false
   property string copyNotice: ""
-  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font")
+  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font, JetBrains Mono, monospace")
 
   function resolveEnginePath() {
     return Qt.resolvedUrl("netradar-engine").toString().replace(/^file:\/\//, "")
