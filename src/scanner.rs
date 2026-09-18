@@ -227,60 +227,107 @@ pub fn read_traffic_stats(iface: &str) -> Option<TrafficStats> {
     None
 }
 
-/// Resolves IP to hostname using reverse DNS (getnameinfo) safely.
+/// Maximum overall DNS scan budget across all discovered neighbor devices.
+pub const MAX_DNS_SCAN_BUDGET: Duration = Duration::from_millis(1500);
+
+/// Maximum duration permitted for an individual reverse DNS lookup.
+pub const PER_HOST_DNS_TIMEOUT: Duration = Duration::from_millis(150);
+
+/// Maximum total duration budget for the entire scan operation.
+pub const MAX_TOTAL_SCAN_TIME: Duration = Duration::from_millis(4000);
+
+/// Resolves IP to hostname using reverse DNS (getnameinfo) safely with strict timeout and fallback.
+#[allow(dead_code)]
 pub fn resolve_hostname(ip_str: &str) -> String {
+    resolve_hostname_bounded(ip_str, PER_HOST_DNS_TIMEOUT)
+}
+
+/// Resolves IP to hostname within a bounded timeout:
+/// 1. Fast-path local lookup via `/etc/hosts` (bounded read, zero network delay).
+/// 2. If not found locally, performs cancellable/timed `getnameinfo()` in a bounded worker thread.
+/// 3. Returns empty string if the lookup times out, fails, or resolver hangs.
+pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
     let Ok(ip) = ip_str.parse::<Ipv4Addr>() else {
-        return ip_str.to_string();
+        return String::new();
     };
 
+    if !security::is_private_or_local_ipv4(ip) {
+        return String::new();
+    }
+
+    // Fast-path: Check /etc/hosts first (strictly local file read, bounded to 1 MiB)
+    if let Ok(file) = fs::File::open("/etc/hosts") {
+        use io::Read;
+        let mut reader = file.take(1024 * 1024);
+        let mut hosts = String::new();
+        if reader.read_to_string(&mut hosts).is_ok() {
+            for line in hosts.lines() {
+                let line = line.trim();
+                if line.starts_with('#') || line.is_empty() {
+                    continue;
+                }
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 && parts[0] == ip_str {
+                    return parts[1].to_string();
+                }
+            }
+        }
+    }
+
+    if timeout.is_zero() {
+        return String::new();
+    }
+
+    // Network reverse DNS with bounded timeout via dedicated worker channel
+    let (tx, rx) = std::sync::mpsc::channel();
     let octets = ip.octets();
-    let sa = libc::sockaddr_in {
-        sin_family: libc::AF_INET as libc::sa_family_t,
-        sin_port: 0,
-        sin_addr: libc::in_addr {
-            s_addr: u32::from_ne_bytes(octets),
-        },
-        sin_zero: [0; 8],
-    };
 
-    let mut host_buf = [0u8; 1024];
+    let spawn_res = std::thread::Builder::new()
+        .name("netradar-rdns".into())
+        .spawn(move || {
+            let sa = libc::sockaddr_in {
+                sin_family: libc::AF_INET as libc::sa_family_t,
+                sin_port: 0,
+                sin_addr: libc::in_addr {
+                    s_addr: u32::from_ne_bytes(octets),
+                },
+                sin_zero: [0; 8],
+            };
 
-    // SAFETY: sa is a valid sockaddr_in struct; host_buf is valid buffer
-    let res = unsafe {
-        libc::getnameinfo(
-            &sa as *const libc::sockaddr_in as *const libc::sockaddr,
-            std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
-            host_buf.as_mut_ptr() as *mut libc::c_char,
-            host_buf.len() as libc::socklen_t,
-            std::ptr::null_mut(),
-            0,
-            libc::NI_NAMEREQD,
-        )
-    };
+            let mut host_buf = [0u8; 1024];
 
-    if res == 0 {
-        if let Ok(c_str) = std::ffi::CStr::from_bytes_until_nul(&host_buf) {
-            if let Ok(s) = c_str.to_str() {
-                return s.to_string();
+            // SAFETY: sa is a valid sockaddr_in struct; host_buf is valid buffer
+            let res = unsafe {
+                libc::getnameinfo(
+                    &sa as *const libc::sockaddr_in as *const libc::sockaddr,
+                    std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+                    host_buf.as_mut_ptr() as *mut libc::c_char,
+                    host_buf.len() as libc::socklen_t,
+                    std::ptr::null_mut(),
+                    0,
+                    libc::NI_NAMEREQD,
+                )
+            };
+
+            if res == 0 {
+                if let Ok(c_str) = std::ffi::CStr::from_bytes_until_nul(&host_buf) {
+                    if let Ok(s) = c_str.to_str() {
+                        let trimmed = s.trim();
+                        if !trimmed.is_empty() {
+                            let _ = tx.send(trimmed.to_string());
+                            return;
+                        }
+                    }
+                }
             }
-        }
+            let _ = tx.send(String::new());
+        });
+
+    if spawn_res.is_err() {
+        return String::new();
     }
 
-    // Check /etc/hosts as fallback
-    if let Ok(hosts) = fs::read_to_string("/etc/hosts") {
-        for line in hosts.lines() {
-            let line = line.trim();
-            if line.starts_with('#') || line.is_empty() {
-                continue;
-            }
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 && parts[0] == ip_str {
-                return parts[1].to_string();
-            }
-        }
-    }
-
-    String::new()
+    rx.recv_timeout(timeout).unwrap_or_default()
 }
 
 /// Performs a non-blocking ping / latency probe for an IP address.
@@ -421,6 +468,9 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         },
     );
 
+    // Total DNS time budget across all neighbor devices to prevent scan stall
+    let dns_budget_start = Instant::now();
+
     // Process detected neighbor devices
     for neigh in neighbors {
         let ip = neigh.dst;
@@ -466,7 +516,17 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
             .and_then(|s| s.into_iter().next())
             .unwrap_or_else(|| "STALE".to_string());
 
-        let hostname = resolve_hostname(&ip);
+        let scan_elapsed = scan_start.elapsed();
+        let dns_elapsed = dns_budget_start.elapsed();
+
+        let hostname = if scan_elapsed < MAX_TOTAL_SCAN_TIME && dns_elapsed < MAX_DNS_SCAN_BUDGET {
+            let remaining_dns = MAX_DNS_SCAN_BUDGET.saturating_sub(dns_elapsed);
+            let remaining_scan = MAX_TOTAL_SCAN_TIME.saturating_sub(scan_elapsed);
+            let per_lookup_timeout = remaining_dns.min(remaining_scan).min(PER_HOST_DNS_TIMEOUT);
+            resolve_hostname_bounded(&ip, per_lookup_timeout)
+        } else {
+            String::new()
+        };
         let alias = reg.aliases.get(&mac).cloned();
 
         // Probe services if it's the gateway or if requested
