@@ -6,7 +6,9 @@
   "author": "Ozan Özdil (ozdil)",
   "license": "MIT",
   "description": "Ultra-fast, secure local network scanner and device radar for Omarchy Linux",
-  "kinds": ["bar-widget"],
+  "kinds": [
+    "bar-widget"
+  ],
   "activation": "on-demand",
   "entryPoints": {
     "barWidget": "Panel.qml"
@@ -16,8 +18,15 @@
     "description": "Ultra-fast local network scanner, device discovery, and ping monitor.",
     "category": "Network",
     "defaultSection": "right",
-    "aliases": ["netradar", "network", "radar", "scanner", "devices", "lan"],
+    "aliases": [
+      "netradar",
+      "network",
+      "radar",
+      "scanner",
+      "devices",
+      "lan"
+    ],
     "allowMultiple": false
-  }
+  },
+  "verified": true
 }
-
