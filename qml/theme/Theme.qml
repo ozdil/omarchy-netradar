@@ -36,7 +36,7 @@ QtObject {
     // Typography
     readonly property string fontFamily: "JetBrainsMono Nerd Font, JetBrains Mono, monospace"
     readonly property string monoFont: "JetBrainsMono Nerd Font, JetBrains Mono, monospace"
-    readonly property string iconFont: "Font Awesome 7 Free Solid, Font Awesome 7 Free, JetBrainsMono Nerd Font, monospace"
+    readonly property string iconFont: "JetBrainsMono Nerd Font, JetBrains Mono, monospace"
 
     // Spacing
     readonly property int radiusSm: 6

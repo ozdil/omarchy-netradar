@@ -206,7 +206,12 @@ pub fn read_traffic_stats(iface: &str) -> Option<TrafficStats> {
         return None;
     }
 
-    let content = fs::read_to_string("/proc/net/dev").ok()?;
+    use io::Read;
+    let file = fs::File::open("/proc/net/dev").ok()?;
+    let mut reader = file.take(security::MAX_BUFFER_CAP as u64);
+    let mut content = String::new();
+    reader.read_to_string(&mut content).ok()?;
+
     for line in content.lines() {
         let line = line.trim();
         if line.starts_with(iface) {
@@ -330,6 +335,39 @@ pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
     rx.recv_timeout(timeout).unwrap_or_default()
 }
 
+/// Triggers a fast, non-privileged subnet sweep on RFC 1918 /24 subnets to warm the kernel ARP table.
+/// Sends a single lightweight UDP datagram to port 5353 (mDNS) across the /24 range.
+/// This causes the Linux kernel network stack to broadcast ARP queries for all local hosts without raw sockets.
+pub fn trigger_active_arp_sweep(local_ip_str: &str, subnet_mask: u8) {
+    if subnet_mask != 24 {
+        return;
+    }
+    let Ok(local_ip) = local_ip_str.parse::<Ipv4Addr>() else {
+        return;
+    };
+    if !security::is_private_or_local_ipv4(local_ip) {
+        return;
+    }
+
+    let octets = local_ip.octets();
+    let Ok(socket) = UdpSocket::bind("0.0.0.0:0") else {
+        return;
+    };
+    let _ = socket.set_nonblocking(true);
+
+    for host in 1..=254 {
+        if host == octets[3] {
+            continue;
+        }
+        let target_ip = Ipv4Addr::new(octets[0], octets[1], octets[2], host);
+        let target_addr = SocketAddr::new(IpAddr::V4(target_ip), 5353);
+        let _ = socket.send_to(&[0], target_addr);
+    }
+
+    // Short grace period to allow local network stack to process ARP replies
+    std::thread::sleep(Duration::from_millis(200));
+}
+
 /// Performs a non-blocking ping / latency probe for an IP address.
 /// Strictly limited to private/local IPv4 addresses and protected against argument injection.
 pub fn measure_latency(ip_str: &str) -> Option<f32> {
@@ -342,16 +380,6 @@ pub fn measure_latency(ip_str: &str) -> Option<f32> {
     }
 
     let ip_string = ip.to_string();
-    let start = Instant::now();
-
-    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
-        let _ = socket.set_read_timeout(Some(Duration::from_millis(150)));
-        let _ = socket.set_write_timeout(Some(Duration::from_millis(150)));
-        let target = SocketAddr::new(IpAddr::V4(ip), 5353);
-        if socket.connect(target).is_ok() {
-            let _ = socket.send(&[0]);
-        }
-    }
 
     let output = security::run_with_monotonic_deadline(
         "ping",
@@ -374,12 +402,18 @@ pub fn measure_latency(ip_str: &str) -> Option<f32> {
         }
     }
 
-    let elapsed = start.elapsed().as_secs_f32() * 1000.0;
-    if elapsed < 200.0 {
-        Some((elapsed * 10.0).round() / 10.0)
-    } else {
-        None
+    // Fallback: fast TCP connect probe to common service ports (80, 443, 22)
+    let tcp_ports = [80, 443, 22];
+    for port in tcp_ports {
+        let target = SocketAddr::new(IpAddr::V4(ip), port);
+        let tcp_start = Instant::now();
+        if TcpStream::connect_timeout(&target, Duration::from_millis(80)).is_ok() {
+            let elapsed_ms = tcp_start.elapsed().as_secs_f32() * 1000.0;
+            return Some((elapsed_ms * 10.0).round() / 10.0);
+        }
     }
+
+    None
 }
 
 /// Executes full network radar scan across active interfaces and neighbor tables.
@@ -428,7 +462,10 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         }
     }
 
-    // 3. Get neighbor devices from kernel
+    // 3. Trigger active unprivileged ARP sweep to populate neighbor table
+    trigger_active_arp_sweep(&local_ip, subnet_mask);
+
+    // 4. Get neighbor devices from kernel
     let neigh_raw = security::run_with_monotonic_deadline(
         "ip",
         &["-j", "neigh", "show"],
@@ -607,3 +644,30 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         devices,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_traffic_stats_bounded_and_safe_iface() {
+        // Safe interface should read or return None if iface not found
+        let _ = read_traffic_stats("lo");
+        // Malicious interface name must immediately return None
+        assert!(read_traffic_stats("eth0; rm -rf").is_none());
+        assert!(read_traffic_stats("").is_none());
+    }
+
+    #[test]
+    fn test_active_sweep_bounds_rfc1918() {
+        // Non-/24 subnet or public IP should safely no-op
+        trigger_active_arp_sweep("8.8.8.8", 24);
+        trigger_active_arp_sweep("192.168.1.50", 16);
+    }
+
+    #[test]
+    fn test_measure_latency_public_ip_rejected() {
+        assert!(measure_latency("1.1.1.1").is_none());
+    }
+}
+

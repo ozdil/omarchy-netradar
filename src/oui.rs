@@ -16,6 +16,19 @@ pub fn lookup_vendor(mac: &str) -> VendorInfo {
         };
     }
 
+    // Check for Locally Administered Address (LAA) / MAC randomization.
+    // In IEEE 802, bit 1 of the first byte is set to 1 for locally administered addresses.
+    // Smartphones (iOS, Android) and modern OSes use this for private Wi-Fi addresses.
+    if let Ok(first_byte) = u8::from_str_radix(&clean[0..2], 16) {
+        if (first_byte & 0x02) != 0 {
+            return VendorInfo {
+                name: "Randomized / Private MAC",
+                category: "phone",
+                icon: "󰏲",
+            };
+        }
+    }
+
     let prefix = &clean[0..6];
 
     match prefix {
@@ -216,3 +229,35 @@ pub fn lookup_vendor(mac: &str) -> VendorInfo {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_laa_randomized_mac_detection() {
+        // Bit 1 of byte 0 set -> Locally Administered Address (Randomized)
+        let randomized_macs = [
+            "02:00:00:00:00:01",
+            "06:AB:CD:12:34:56",
+            "0A:11:22:33:44:55",
+            "0E:99:88:77:66:55",
+            "DA:A1:19:22:33:44",
+        ];
+        for mac in randomized_macs {
+            let info = lookup_vendor(mac);
+            assert_eq!(info.name, "Randomized / Private MAC");
+            assert_eq!(info.category, "phone");
+        }
+    }
+
+    #[test]
+    fn test_known_oui_lookup() {
+        let apple = lookup_vendor("00:03:93:11:22:33");
+        assert_eq!(apple.name, "Apple, Inc.");
+
+        let raspberry_pi = lookup_vendor("B8:27:EB:12:34:56");
+        assert_eq!(raspberry_pi.name, "Raspberry Pi Foundation");
+    }
+}
+

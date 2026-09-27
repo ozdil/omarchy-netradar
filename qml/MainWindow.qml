@@ -43,6 +43,10 @@ Rectangle {
         return "/usr/bin/netradar-engine"
     }
 
+    function isValidMac(mac) {
+        return typeof mac === "string" && /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(mac.trim())
+    }
+
     function isValidIp(ip) {
         return typeof ip === "string" && /^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip.trim())
     }
@@ -67,13 +71,16 @@ Rectangle {
     }
 
     function toggleTrust(mac, currentTrust) {
+        if (!isValidMac(mac)) return
         var flag = currentTrust ? "--untrust" : "--trust"
         trustProc.command = [root.resolveEnginePath(), flag, mac]
         trustProc.running = true
     }
 
     function saveAlias(mac, alias) {
-        aliasProc.command = [root.resolveEnginePath(), "--set-alias", mac, alias]
+        if (!isValidMac(mac)) return
+        var cleanAlias = String(alias || "").slice(0, 64)
+        aliasProc.command = [root.resolveEnginePath(), "--set-alias", mac, cleanAlias]
         aliasProc.running = true
         root.editingMac = ""
     }
