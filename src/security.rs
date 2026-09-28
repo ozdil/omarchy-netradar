@@ -1,6 +1,6 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -78,6 +78,14 @@ pub fn spawn_isolated(program: &str, args: &[&str]) -> io::Result<ProcessGroupGu
     cmd.env("PATH", "/usr/bin:/bin");
     cmd.env("LC_ALL", "C");
     cmd.process_group(0);
+    unsafe {
+        cmd.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -182,23 +190,50 @@ pub fn run_with_monotonic_deadline(
     Ok(output)
 }
 
-/// Atomically writes content to a sensitive file with 0600 permissions, rejecting symlinks.
+/// Atomically writes content to a sensitive file with 0600 permissions, rejecting symlinks and hardlinks.
 pub fn atomic_write_0600(target_path: &Path, content: &[u8]) -> io::Result<()> {
+    let current_uid = unsafe { libc::geteuid() };
+
     if let Some(parent) = target_path.parent() {
         fs::create_dir_all(parent)?;
+        let parent_meta = fs::symlink_metadata(parent)?;
+        if parent_meta.file_type().is_symlink() {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Parent directory is a symlink",
+            ));
+        }
+        if parent_meta.uid() != current_uid {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Parent directory not owned by current user",
+            ));
+        }
         // Set parent directory mode to 0700
-        let mut perms = fs::metadata(parent)?.permissions();
+        let mut perms = parent_meta.permissions();
         perms.set_mode(0o700);
         let _ = fs::set_permissions(parent, perms);
     }
 
-    // Verify existing file if present: reject symlinks and verify ownership
+    // Verify existing file if present: reject symlinks, verify ownership, reject hardlinks
     if target_path.exists() {
         let meta = fs::symlink_metadata(target_path)?;
         if meta.file_type().is_symlink() {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "Refusing to write to symlink",
+            ));
+        }
+        if meta.uid() != current_uid {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Refusing to overwrite file not owned by current user",
+            ));
+        }
+        if meta.nlink() > 1 {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Refusing to overwrite file with multiple hard links",
             ));
         }
     }
@@ -221,6 +256,7 @@ pub fn atomic_write_0600(target_path: &Path, content: &[u8]) -> io::Result<()> {
             .write(true)
             .create_new(true)
             .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW)
             .open(&tmp_path)?;
 
         file.write_all(content)?;
@@ -235,6 +271,7 @@ pub fn atomic_write_0600(target_path: &Path, content: &[u8]) -> io::Result<()> {
 
 /// Reads a sensitive file safely, validating it is a regular file with 0600 mode owned by current user.
 /// Strictly enforces maximum 1 MiB size cap to prevent memory exhaustion / DoS attacks.
+/// Rejects symlinks and hardlinks.
 pub fn safe_read_0600(path: &Path) -> io::Result<Vec<u8>> {
     let meta = fs::symlink_metadata(path)?;
     if meta.file_type().is_symlink() {
@@ -250,6 +287,21 @@ pub fn safe_read_0600(path: &Path) -> io::Result<Vec<u8>> {
         ));
     }
 
+    let current_uid = unsafe { libc::geteuid() };
+    if meta.uid() != current_uid {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Target file is not owned by current user",
+        ));
+    }
+
+    if meta.nlink() > 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Target file has multiple hard links",
+        ));
+    }
+
     if meta.len() > MAX_REGISTRY_FILE_SIZE {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -257,7 +309,10 @@ pub fn safe_read_0600(path: &Path) -> io::Result<Vec<u8>> {
         ));
     }
 
-    let file = File::open(path)?;
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)?;
     let mut data = Vec::with_capacity(meta.len().min(MAX_REGISTRY_FILE_SIZE) as usize);
     let mut bounded_reader = file.take(MAX_REGISTRY_FILE_SIZE + 1);
     bounded_reader.read_to_end(&mut data)?;
@@ -292,6 +347,55 @@ pub fn is_valid_mac(mac: &str) -> bool {
             return false;
         }
     }
+    true
+}
+
+/// Validates that a MAC address is a valid, unicast hardware address.
+/// Rejects:
+/// - Malformed MAC addresses
+/// - All-zero addresses (00:00:00:00:00:00)
+/// - Broadcast addresses (FF:FF:FF:FF:FF:FF)
+/// - Multicast addresses (least significant bit of first octet is 1, e.g. 01:00:5E:...)
+pub fn is_valid_unicast_mac(mac: &str) -> bool {
+    let trimmed = mac.trim();
+    let parts: Vec<&str> = if trimmed.contains(':') {
+        trimmed.split(':').collect()
+    } else if trimmed.contains('-') {
+        trimmed.split('-').collect()
+    } else {
+        return false;
+    };
+
+    if parts.len() != 6 {
+        return false;
+    }
+
+    let mut bytes = [0u8; 6];
+    for (i, part) in parts.iter().enumerate() {
+        if part.len() != 2 {
+            return false;
+        }
+        match u8::from_str_radix(part, 16) {
+            Ok(b) => bytes[i] = b,
+            Err(_) => return false,
+        }
+    }
+
+    // Reject all-zero
+    if bytes.iter().all(|&b| b == 0) {
+        return false;
+    }
+
+    // Reject broadcast
+    if bytes.iter().all(|&b| b == 0xFF) {
+        return false;
+    }
+
+    // Reject multicast (bit 0 of the first octet is 1)
+    if (bytes[0] & 0x01) != 0 {
+        return false;
+    }
+
     true
 }
 

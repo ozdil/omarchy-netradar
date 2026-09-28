@@ -200,4 +200,87 @@ fn test_zero_emojis_in_source_code() {
     }
 }
 
+#[test]
+fn test_is_valid_unicast_mac() {
+    use netradar_engine::security::is_valid_unicast_mac;
+
+    // Valid unicast MACs
+    assert!(is_valid_unicast_mac("00:1A:2B:3C:4D:5E"));
+    assert!(is_valid_unicast_mac("52:54:00:12:34:56"));
+    assert!(is_valid_unicast_mac("A0:B1:C2:D3:E4:F5"));
+    assert!(is_valid_unicast_mac("00-1A-2B-3C-4D-5E"));
+
+    // Multicast MACs (least significant bit of first octet is 1)
+    assert!(!is_valid_unicast_mac("01:00:5E:00:00:01"));
+    assert!(!is_valid_unicast_mac("33:33:00:00:00:01"));
+    assert!(!is_valid_unicast_mac("01:80:C2:00:00:00"));
+
+    // Broadcast MAC
+    assert!(!is_valid_unicast_mac("FF:FF:FF:FF:FF:FF"));
+    assert!(!is_valid_unicast_mac("ff:ff:ff:ff:ff:ff"));
+
+    // All zero MAC
+    assert!(!is_valid_unicast_mac("00:00:00:00:00:00"));
+
+    // Invalid format
+    assert!(!is_valid_unicast_mac(""));
+    assert!(!is_valid_unicast_mac("invalid"));
+    assert!(!is_valid_unicast_mac("00:11:22:33:44"));
+    assert!(!is_valid_unicast_mac("00:11:22:33:44:55:66"));
+    assert!(!is_valid_unicast_mac("GG:11:22:33:44:55"));
+}
+
+#[test]
+fn test_safe_storage_hardlink_rejection() {
+    use netradar_engine::security::{atomic_write_0600, safe_read_0600};
+
+    let test_dir = Path::new("/tmp/netradar_test_hardlink");
+    let _ = fs::remove_dir_all(test_dir);
+    fs::create_dir_all(test_dir).unwrap();
+
+    let target_file = test_dir.join("original.json");
+    let link_file = test_dir.join("hardlink.json");
+
+    atomic_write_0600(&target_file, b"{\"test\": \"data\"}").expect("Initial write should succeed");
+
+    // Create a hardlink
+    fs::hard_link(&target_file, &link_file).expect("Hardlink creation should succeed");
+
+    // safe_read_0600 must reject reading a file with nlink > 1
+    let read_result = safe_read_0600(&target_file);
+    assert!(read_result.is_err(), "safe_read_0600 must reject hardlinked file");
+
+    // atomic_write_0600 must reject overwriting an existing file that has nlink > 1
+    let write_result = atomic_write_0600(&target_file, b"{\"test\": \"overwrite\"}");
+    assert!(write_result.is_err(), "atomic_write_0600 must reject hardlinked file");
+
+    let _ = fs::remove_dir_all(test_dir);
+}
+
+#[test]
+fn test_spawn_isolated_no_new_privs() {
+    use std::time::Duration;
+    use netradar_engine::security::run_with_monotonic_deadline;
+
+    // Verify kernel-level NoNewPrivs flag via /proc/self/status
+    let output_bytes = run_with_monotonic_deadline(
+        "cat",
+        &["/proc/self/status"],
+        Duration::from_secs(2),
+    ).expect("Execution of cat should succeed");
+
+    let status_str = String::from_utf8_lossy(&output_bytes);
+    let no_new_privs_line = status_str
+        .lines()
+        .find(|line| line.starts_with("NoNewPrivs:"))
+        .expect("NoNewPrivs line must exist in /proc/self/status");
+
+    assert_eq!(
+        no_new_privs_line.trim(),
+        "NoNewPrivs:\t1",
+        "Subprocess must run with PR_SET_NO_NEW_PRIVS kernel confinement"
+    );
+}
+
+
 

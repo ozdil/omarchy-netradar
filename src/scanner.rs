@@ -529,7 +529,7 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         }
 
         let is_gw = ip == gateway;
-        if is_gw {
+        if is_gw && security::is_valid_unicast_mac(&mac) {
             gateway_mac = mac.clone();
         }
 
@@ -600,7 +600,7 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
 
     // ARP Spoofing detection: compare gateway MAC for the same gateway IP
     let mut arp_spoof_warning = false;
-    if !gateway_mac.is_empty() && !gateway.is_empty() {
+    if !gateway_mac.is_empty() && !gateway.is_empty() && security::is_valid_unicast_mac(&gateway_mac) {
         if let (Some(ref saved_ip), Some(ref saved_mac)) = (&reg.gateway_ip, &reg.gateway_mac) {
             if saved_ip == &gateway && saved_mac != &gateway_mac {
                 arp_spoof_warning = true;

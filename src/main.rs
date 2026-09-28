@@ -1,9 +1,7 @@
 use std::env;
 use std::process;
 
-mod oui;
-mod scanner;
-mod security;
+use netradar_engine::{scanner, security};
 
 fn print_usage() {
     println!("NetRadar Engine v1.2.0 - Omarchy Linux Network Scanner & Radar");
