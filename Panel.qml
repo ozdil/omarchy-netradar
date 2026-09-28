@@ -54,7 +54,7 @@ Panel {
     var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
     actionProc.command = ["xdg-open", url]
     actionProc.running = true
-    root.copyNotice = "Tarayıcıda açılıyor: " + url
+    root.copyNotice = "Opening in browser: " + url
     copyNoticeTimer.restart()
   }
 
@@ -62,14 +62,14 @@ Panel {
     if (!isValidIp(ip)) return
     actionProc.command = ["foot", "ssh", "--", ip]
     actionProc.running = true
-    root.copyNotice = "SSH Başlatıldı: " + ip
+    root.copyNotice = "SSH Launched: " + ip
     copyNoticeTimer.restart()
   }
 
   function copyText(txt, label) {
     copyProc.command = ["wl-copy", txt]
     copyProc.running = true
-    root.copyNotice = label + " kopyalandı: " + txt
+    root.copyNotice = label + " copied: " + txt
     copyNoticeTimer.restart()
   }
 
@@ -199,7 +199,7 @@ Panel {
     bar: root.bar
     text: "󰈀"
     foreground: root.isScanning ? "#00e5ff" : (root.bar ? root.bar.foreground : Color.foreground)
-    tooltipText: "NetRadar: " + root.deviceCount + " Cihaz Bağlı (" + root.iface + ")"
+    tooltipText: "NetRadar: " + root.deviceCount + " Devices Connected (" + root.iface + ")"
     onPressed: function(b) {
       root.toggle()
       if (root.opened) root.scan()
@@ -275,7 +275,7 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: root.deviceCount + " Cihaz • " + root.iface + " (" + root.localIp + "/" + root.subnetMask + ")"
+              text: root.deviceCount + " Devices • " + root.iface + " (" + root.localIp + "/" + root.subnetMask + ")"
               color: Color.muted
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtext
@@ -357,7 +357,7 @@ Panel {
                 Text {
                   id: gwWebText
                   textFormat: Text.PlainText
-                  text: "Web Aç"
+                  text: "Open Web"
                   font.bold: true
                   font.pixelSize: Style.font.micro
                   color: root.bar ? root.bar.foreground : Color.foreground
@@ -375,7 +375,7 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: "Yerel: " + root.localIp
+              text: "Local: " + root.localIp
               color: Color.muted
               font.pixelSize: Style.font.caption
             }
@@ -407,7 +407,7 @@ Panel {
             TextField {
               id: searchInput
               Layout.fillWidth: true
-              placeholderText: "IP, MAC, Hostname veya Üretici Ara..."
+              placeholderText: "Search IP, MAC, Hostname or Vendor..."
               placeholderTextColor: Color.muted
               color: root.bar ? root.bar.foreground : Color.foreground
               font.pixelSize: Style.font.subtext
@@ -630,7 +630,7 @@ Panel {
           Text {
             anchors.centerIn: parent
             textFormat: Text.PlainText
-            text: root.devices.length === 0 ? "Ağ taranıyor..." : "Aramayla eşleşen cihaz bulunamadı"
+            text: root.devices.length === 0 ? "Scanning network..." : "No devices matching search"
             color: Color.muted
             font.pixelSize: Style.font.subtext
           }
