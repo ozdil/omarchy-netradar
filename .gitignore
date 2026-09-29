@@ -1,4 +1,5 @@
 /target/
+/netradar-engine
 *.log
 *.qslog
 .tmp_*

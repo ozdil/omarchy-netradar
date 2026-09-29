@@ -4,7 +4,7 @@ use std::process;
 use netradar_engine::{scanner, security};
 
 fn print_usage() {
-    println!("NetRadar Engine v1.2.0 - Omarchy Linux Network Scanner & Radar");
+    println!("NetRadar Engine v1.3.0 - Omarchy Linux Network Scanner & Radar");
     println!("Usage:");
     println!("  netradar-engine [OPTIONS]");
     println!();
@@ -12,6 +12,8 @@ fn print_usage() {
     println!("  --scan                 Perform full network scan and output JSON (default)");
     println!("  --ping <ip>            Measure ping latency to target IP");
     println!("  --probe <ip>           Probe common benign services (HTTP, HTTPS, SSH, WebUI) on IP");
+    println!("  --ssh <ip>             Launch terminal SSH session to target IP");
+    println!("  --web <ip> [port]      Open web interface in default browser");
     println!("  --set-alias <mac> <alias> Set persistent nickname/alias for a device MAC");
     println!("  --trust <mac>          Mark device MAC as trusted (whitelist)");
     println!("  --untrust <mac>        Remove device MAC from trusted whitelist");
@@ -141,6 +143,67 @@ fn main() {
                 } else {
                     println!("null");
                 }
+                return;
+            }
+            "--ssh" => {
+                if args.len() < 3 {
+                    eprintln!("Error: Missing IP address for --ssh");
+                    process::exit(1);
+                }
+                let ip = &args[2];
+                let Ok(parsed_ip) = ip.parse::<std::net::Ipv4Addr>() else {
+                    eprintln!("Error: Invalid IPv4 address for --ssh");
+                    process::exit(1);
+                };
+                if !security::is_private_or_local_ipv4(parsed_ip) {
+                    eprintln!("Error: Target IP must be in private or local subnet");
+                    process::exit(1);
+                }
+                let ip_str = ip.to_string();
+                let spawned = std::process::Command::new("xdg-terminal-exec")
+                    .args(["--", "ssh", "--", &ip_str])
+                    .spawn();
+                if spawned.is_err() {
+                    let _ = std::process::Command::new("foot")
+                        .args(["ssh", "--", &ip_str])
+                        .spawn()
+                        .or_else(|_| {
+                            std::process::Command::new("alacritty")
+                                .args(["-e", "ssh", "--", &ip_str])
+                                .spawn()
+                        })
+                        .or_else(|_| {
+                            std::process::Command::new("kitty")
+                                .args(["ssh", "--", &ip_str])
+                                .spawn()
+                        });
+                }
+                return;
+            }
+            "--web" => {
+                if args.len() < 3 {
+                    eprintln!("Error: Missing IP address for --web");
+                    process::exit(1);
+                }
+                let ip = &args[2];
+                let Ok(parsed_ip) = ip.parse::<std::net::Ipv4Addr>() else {
+                    eprintln!("Error: Invalid IPv4 address for --web");
+                    process::exit(1);
+                };
+                if !security::is_private_or_local_ipv4(parsed_ip) {
+                    eprintln!("Error: Target IP must be in private or local subnet");
+                    process::exit(1);
+                }
+                let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(80);
+                let proto = if port == 443 { "https" } else { "http" };
+                let url = if port == 80 || port == 443 {
+                    format!("{}://{}", proto, ip)
+                } else {
+                    format!("{}://{}:{}", proto, ip, port)
+                };
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&url)
+                    .spawn();
                 return;
             }
             "--status" => {

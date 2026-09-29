@@ -84,19 +84,17 @@ Panel {
 
   function openWeb(ip, port) {
     if (!isValidIp(ip) || typeof port !== "number" || port < 1 || port > 65535) return
-    var proto = (port === 443) ? "https" : "http"
-    var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
-    actionProc.command = ["xdg-open", url]
+    actionProc.command = [root.resolveEnginePath(), "--web", ip, String(port)]
     actionProc.running = true
-    root.copyNotice = "Opening in browser: " + url
+    root.copyNotice = "Opening web interface: " + ip + ":" + port
     copyNoticeTimer.restart()
   }
 
   function openSsh(ip) {
     if (!isValidIp(ip)) return
-    actionProc.command = ["foot", "ssh", "--", ip]
+    actionProc.command = [root.resolveEnginePath(), "--ssh", ip]
     actionProc.running = true
-    root.copyNotice = "SSH Launched: " + ip
+    root.copyNotice = "SSH Terminal Launched: " + ip
     copyNoticeTimer.restart()
   }
 
@@ -297,6 +295,10 @@ Panel {
         } else if (t === "h" || t === "H") {
           if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
             root.openSsh(root.filteredDevices[root.selectedIndex].ip)
+          }
+        } else if (t === "c" || t === "C") {
+          if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
+            root.copyText(root.filteredDevices[root.selectedIndex].ip, "IP")
           }
         }
       }
@@ -775,7 +777,7 @@ Panel {
         }
 
         Text {
-          text: "Version: 1.1.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nLocal Network Device Discovery, ARP Scanner & Port Analysis Tool"
+          text: "Version: 1.3.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nLocal Network Device Discovery, ARP Scanner & Port Analysis Tool"
           color: root.bar ? root.bar.foreground : Color.foreground
           opacity: 0.7
           font.family: root.fontFamily

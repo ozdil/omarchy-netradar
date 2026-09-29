@@ -1,6 +1,6 @@
 # Maintainer: Ozan Özdil (ozdil) <ozan@pm.me>
 pkgname=omarchy-netradar
-pkgver=1.0.0
+pkgver=1.3.0
 pkgrel=1
 _commit="953ac977c38c20558e07d576d512bf1716db0d77"
 pkgdesc="Ultra-fast, secure local network scanner and device radar for Omarchy Linux"

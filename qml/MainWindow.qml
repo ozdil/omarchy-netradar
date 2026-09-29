@@ -36,7 +36,11 @@ Rectangle {
     property real lastTrafficTime: 0
 
     function resolveEnginePath() {
+        var localBin = Qt.resolvedUrl("../netradar-engine").toString().replace(/^file:\/\//, "")
         var home = Quickshell.env("HOME") || ""
+        if (localBin.length > 0) {
+            return localBin
+        }
         if (home.length > 0) {
             return home + "/.local/bin/netradar-engine"
         }
@@ -87,17 +91,15 @@ Rectangle {
 
     function openWeb(ip, port) {
         if (!isValidIp(ip) || typeof port !== "number" || port < 1 || port > 65535) return
-        var proto = (port === 443) ? "https" : "http"
-        var url = proto + "://" + ip + ((port === 80 || port === 443) ? "" : (":" + port))
-        actionProc.command = ["xdg-open", url]
+        actionProc.command = [root.resolveEnginePath(), "--web", ip, String(port)]
         actionProc.running = true
-        root.copyNotice = I18n.t("opening_web") + url
+        root.copyNotice = I18n.t("opening_web") + ip + ":" + port
         noticeTimer.restart()
     }
 
     function openSsh(ip) {
         if (!isValidIp(ip)) return
-        actionProc.command = ["foot", "ssh", "--", ip]
+        actionProc.command = [root.resolveEnginePath(), "--ssh", ip]
         actionProc.running = true
         root.copyNotice = I18n.t("opening_ssh") + ip
         noticeTimer.restart()
