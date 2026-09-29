@@ -25,6 +25,40 @@ Panel {
   property string searchQuery: ""
   property bool isScanning: false
   property string copyNotice: ""
+  property bool showAboutModal: false
+  property int selectedIndex: 0
+  property bool cursorActive: false
+
+  onOpenedChanged: {
+    if (root.opened) {
+      selectedIndex = 0
+      cursorActive = false
+      root.scan()
+    }
+  }
+
+  function moveCursor(dy) {
+    if (!cursorActive) {
+      cursorActive = true
+      selectedIndex = 0
+      return
+    }
+    var len = root.filteredDevices ? root.filteredDevices.length : 0
+    if (len === 0) return
+    var next = selectedIndex + dy
+    if (next < 0) next = 0
+    if (next >= len) next = len - 1
+    selectedIndex = next
+  }
+
+  function activateSelected() {
+    if (!root.filteredDevices || root.filteredDevices.length === 0) return
+    var dev = root.filteredDevices[selectedIndex]
+    if (dev && dev.ip) {
+      root.ping(dev.ip)
+    }
+  }
+
   readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font, JetBrains Mono, monospace")
 
   function resolveEnginePath() {
@@ -232,18 +266,50 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(440))
     contentHeight: panel.fittedContentHeight(panelCol.implicitHeight, Style.space(620))
 
-    ScrollView {
-      id: scrollArea
+    PanelKeyCatcher {
+      id: keyCatcher
       anchors.fill: parent
-      clip: true
-      ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-      ScrollBar.vertical.policy: panelCol.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+      onCloseRequested: {
+        if (root.showAboutModal) {
+          root.showAboutModal = false
+        } else {
+          root.close()
+        }
+      }
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) { root.moveCursor(dy) }
+      onActivateRequested: root.activateSelected()
+      onTextKey: function(t) {
+        if (t === "r" || t === "R" || t === "s" || t === "S") {
+          root.scan()
+        } else if (t === "a" || t === "A") {
+          root.showAboutModal = !root.showAboutModal
+        } else if (t === "p" || t === "P") {
+          root.activateSelected()
+        } else if (t === "w" || t === "W") {
+          if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
+            root.openWeb(root.filteredDevices[root.selectedIndex].ip, 80)
+          }
+        } else if (t === "h" || t === "H") {
+          if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
+            root.openSsh(root.filteredDevices[root.selectedIndex].ip)
+          }
+        }
+      }
 
-      Column {
-        id: panelCol
+      ScrollView {
+        id: scrollArea
+        anchors.fill: parent
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: panelCol.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+
+        Column {
+          id: panelCol
         width: scrollArea.availableWidth
         spacing: Style.space(12)
 
@@ -279,6 +345,29 @@ Panel {
               color: Color.muted
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtext
+            }
+          }
+
+          Button {
+            id: aboutBtn
+            flat: true
+            implicitWidth: Style.space(34)
+            implicitHeight: Style.space(34)
+            tooltipText: "About & Imprint"
+            onClicked: root.showAboutModal = !root.showAboutModal
+
+            background: Rectangle {
+              radius: Style.space(8)
+              color: aboutBtn.hovered ? Color.m3surface : "transparent"
+            }
+
+            contentItem: Text {
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: "󰋽"
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              color: root.showAboutModal ? "#00e5ff" : Color.muted
             }
           }
 
@@ -457,12 +546,15 @@ Panel {
 
           delegate: Rectangle {
             id: card
+            readonly property bool isKeyboardFocused: root.cursorActive && index === root.selectedIndex
             width: panelCol.width
             implicitHeight: cardCol.implicitHeight + Style.space(16)
             radius: Style.space(10)
-            color: modelData.is_gateway ? Qt.rgba(0, 0.9, 1, 0.08) : (modelData.is_local ? Qt.rgba(0.65, 0.85, 0.58, 0.08) : Color.m3surface)
-            border.color: modelData.is_gateway ? "#00e5ff" : (modelData.is_local ? "#a6da95" : "transparent")
-            border.width: 1
+            color: isKeyboardFocused
+                   ? Qt.rgba(0, 0.9, 1, 0.18)
+                   : (modelData.is_gateway ? Qt.rgba(0, 0.9, 1, 0.08) : (modelData.is_local ? Qt.rgba(0.65, 0.85, 0.58, 0.08) : Color.m3surface))
+            border.color: isKeyboardFocused ? "#00e5ff" : (modelData.is_gateway ? "#00e5ff" : (modelData.is_local ? "#a6da95" : "transparent"))
+            border.width: (isKeyboardFocused || modelData.is_gateway || modelData.is_local) ? 1 : 0
 
             Column {
               id: cardCol
@@ -636,6 +728,91 @@ Panel {
           }
         }
       }
+    }
+
+    // About & Imprint Modal Overlay
+    Rectangle {
+      id: aboutOverlay
+      anchors.fill: parent
+      visible: root.showAboutModal
+      color: Qt.rgba(0.05, 0.05, 0.07, 0.96)
+      z: 99
+
+      MouseArea {
+        anchors.fill: parent
+        // Block underlying clicks
+      }
+
+      Column {
+        anchors.centerIn: parent
+        width: parent.width - Style.space(40)
+        spacing: Style.space(12)
+
+        Row {
+          width: parent.width
+          Item {
+            width: parent.width - closeAboutBtn.implicitWidth
+            implicitHeight: aboutTitleText.implicitHeight
+            Text {
+              id: aboutTitleText
+              text: "NetRadar"
+              color: root.bar ? root.bar.foreground : Color.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+            }
+          }
+
+          Button {
+            id: closeAboutBtn
+            text: "✕"
+            bordered: true
+            foreground: root.bar ? root.bar.foreground : Color.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            onClicked: root.showAboutModal = false
+          }
+        }
+
+        Text {
+          text: "Version: 1.1.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nLocal Network Device Discovery, ARP Scanner & Port Analysis Tool"
+          color: root.bar ? root.bar.foreground : Color.foreground
+          opacity: 0.7
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          lineHeight: 1.3
+        }
+
+        PanelSeparator {
+          width: parent.width
+          foreground: root.bar ? root.bar.foreground : Color.foreground
+        }
+
+        Button {
+          width: parent.width
+          text: "GitHub / Contact"
+          iconText: "󰊤"
+          bordered: true
+          foreground: root.bar ? root.bar.foreground : Color.foreground
+          accent: Color.accent
+          fontFamily: root.fontFamily
+          fontSize: Style.font.caption
+          onClicked: Qt.openUrlExternally("https://github.com/ozdil")
+        }
+
+        Button {
+          width: parent.width
+          text: "Buy Me a Coffee"
+          iconText: "󰅖"
+          bordered: true
+          foreground: "#000000"
+          color: "#FFDD00"
+          fontFamily: root.fontFamily
+          fontSize: Style.font.caption
+          onClicked: Qt.openUrlExternally("https://buymeacoffee.com/ozdil")
+        }
+      }
+    }
     }
   }
 }
