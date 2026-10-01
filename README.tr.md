@@ -4,6 +4,8 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-Support_Development-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ozdil)
 
+![NetRadar Preview](preview.png)
+
 > **Omarchy Linux masaüstü ortamı için ultra hızlı, minimalist ve güvenli yerel ağ tarayıcısı ve cihaz radarı.**
 
 Yerel **Quickshell (QML)** ve sertleştirilmiş **Rust Motoru (`netradar-engine`)** ile geliştirilen NetRadar; root yetkisine ihtiyaç duymadan, donanım üreticisi tespiti ve tam Wayland/Omarchy tema uyumuyla yerel Wi-Fi ve Ethernet ağınızdaki cihazları izler.
