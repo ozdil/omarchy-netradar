@@ -59,11 +59,92 @@ pub fn lookup_vendor(mac: &str) -> VendorInfo {
             }
         }
 
+        // Vestel Elektronik (Smart TVs)
+        "64D81B" | "486DBB" | "A808CF" | "0009DF" | "001C82" | "182666" | "3895F6" => {
+            VendorInfo {
+                name: "Vestel Smart TV",
+                category: "tv",
+                icon: "󰖺",
+            }
+        }
+
+        // LG Innotek / LG Electronics
+        "0005F9" | "001417" | "0019C7" | "001C62" | "001E75" | "002483" | "10683F" | "203DB2"
+        | "2C2BF9" | "F4D9FB" | "702C1F" | "88C9D0" | "CC2D8C" => {
+            VendorInfo {
+                name: "LG Electronics",
+                category: "tv",
+                icon: "󰵔",
+            }
+        }
+
+        // WNC Corporation (Network devices, modems, adapters)
+        "D86162" | "E8C7CF" | "00183A" | "002682" | "38A28C" => VendorInfo {
+            name: "WNC Corporation",
+            category: "router",
+            icon: "󰈀",
+        },
+
+        // Gaoshengda (Smart TV & IoT Wi-Fi modules)
+        "F0A3B2" | "D07602" | "84F5A2" | "CCB182" | "E4C32A" => VendorInfo {
+            name: "Gaoshengda (Smart Device)",
+            category: "tv",
+            icon: "󰖺",
+        },
+
+        // AzureWave Technology (Wi-Fi/Bluetooth modules)
+        "F854F6" | "0025D3" | "28C2DD" | "446D57" | "6C71D9" | "74F06D" | "B0C554" => VendorInfo {
+            name: "AzureWave Technology",
+            category: "pc",
+            icon: "󰌢",
+        },
+
+        // Askey Computer
+        "4CEDDE" | "0016E3" | "00223F" | "002624" | "74888B" => VendorInfo {
+            name: "Askey Computer Corp.",
+            category: "router",
+            icon: "󰈀",
+        },
+
+        // Elitegroup Computer Systems (ECS)
+        "002197" | "000E2E" | "001921" | "002713" => VendorInfo {
+            name: "Elitegroup Computer Systems",
+            category: "pc",
+            icon: "󰌢",
+        },
+
+        // Realtek Semiconductor
+        "00E04C" | "525400" | "5404A6" | "704D7B" => VendorInfo {
+            name: "Realtek Semiconductor",
+            category: "pc",
+            icon: "󰌢",
+        },
+
+        // Lenovo
+        "005907" | "AC7289" | "705A0F" | "E454E8" | "54EE75" | "84A938" => VendorInfo {
+            name: "Lenovo",
+            category: "pc",
+            icon: "󰌢",
+        },
+
+        // Synology & QNAP (NAS)
+        "001132" | "0024A5" => VendorInfo {
+            name: "Synology NAS",
+            category: "iot",
+            icon: "󰋊",
+        },
+        "00089B" | "245EBE" => VendorInfo {
+            name: "QNAP NAS",
+            category: "iot",
+            icon: "󰋊",
+        },
+
         // Intel (Laptops / PCs / Motherboards)
         "0002B3" | "000347" | "000423" | "0007E9" | "000C76" | "000E0C" | "001302" | "001320"
         | "0013E8" | "001500" | "001517" | "001676" | "0018DE" | "0019D1" | "001B21" | "001C23"
         | "001D09" | "001D6B" | "001E67" | "00216A" | "0022FB" | "002315" | "0024D7" | "0026C7"
-        | "3413E8" | "4851B7" | "6805CA" | "7C214A" | "8086F2" | "94E6F7" | "A44CC8" | "D83B22" => {
+        | "3413E8" | "4851B7" | "4CA954" | "6805CA" | "7C214A" | "8086F2" | "94E6F7" | "A44CC8"
+        | "D83B22" | "E4B97A" => {
             VendorInfo {
                 name: "Intel Corporation",
                 category: "pc",
@@ -170,14 +251,6 @@ pub fn lookup_vendor(mac: &str) -> VendorInfo {
             icon: "󰖺",
         },
 
-        // LG Electronics (WebOS TV / Appliances)
-        "0005F9" | "001417" | "0019C7" | "001C62" | "001E75" | "002483" | "10683F" | "203DB2" => {
-            VendorInfo {
-                name: "LG Electronics",
-                category: "tv",
-                icon: "󰵔",
-            }
-        }
 
         // VMware / Virtual Machines
         "005056" | "000C29" | "000569" => VendorInfo {

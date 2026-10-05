@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ozdil.netradar",
   "name": "NetRadar",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "author": "Ozan Özdil (ozdil)",
   "license": "MIT",
   "description": "Zero-trust local network scanner, ARP/ICMP device radar, ping monitor, and hardened SSH/Web service launcher for Omarchy Linux.",

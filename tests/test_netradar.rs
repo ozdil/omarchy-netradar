@@ -282,5 +282,55 @@ fn test_spawn_isolated_no_new_privs() {
     );
 }
 
+#[test]
+fn test_cli_version() {
+    let output = std::process::Command::new("cargo")
+        .args(["run", "--quiet", "--", "--version"])
+        .output()
+        .expect("Failed to run cargo run --version");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("netradar-engine 1.3.2"));
+}
+
+#[test]
+fn test_expanded_oui_lookup() {
+    use netradar_engine::oui::lookup_vendor;
+
+    // Vestel Smart TV
+    let vestel = lookup_vendor("64:D8:1B:11:22:33");
+    assert_eq!(vestel.name, "Vestel Smart TV");
+    assert_eq!(vestel.category, "tv");
+
+    // Intel Corporation
+    let intel = lookup_vendor("4C:A9:54:AA:BB:CC");
+    assert_eq!(intel.name, "Intel Corporation");
+    assert_eq!(intel.category, "pc");
+
+    // WNC Corporation
+    let wnc = lookup_vendor("E8:C7:CF:12:34:56");
+    assert_eq!(wnc.name, "WNC Corporation");
+    assert_eq!(wnc.category, "router");
+
+    // LG Electronics
+    let lg = lookup_vendor("2C:2B:F9:01:02:03");
+    assert_eq!(lg.name, "LG Electronics");
+    assert_eq!(lg.category, "tv");
+}
+
+#[test]
+fn test_local_hostname_and_hosts_map() {
+    use netradar_engine::scanner::{get_local_hostname, load_hosts_map};
+
+    let hostname = get_local_hostname();
+    assert!(!hostname.is_empty(), "Hostname should never be empty");
+
+    let hosts_map = load_hosts_map();
+    // /etc/hosts typically contains localhost / 127.0.0.1
+    if !hosts_map.is_empty() {
+        assert!(hosts_map.contains_key("127.0.0.1") || hosts_map.contains_key("::1"));
+    }
+}
+
 
 

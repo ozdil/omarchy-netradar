@@ -30,7 +30,7 @@ Panel {
   readonly property string manifestFallbackPath: (Quickshell.env("HOME") || "/home/ozdil") + "/.config/omarchy/plugins/ozdil.netradar/manifest.json"
 
   property string pluginName: "NetRadar"
-  property string pluginVersion: "1.3.1"
+  property string pluginVersion: "1.3.2"
   property string pluginDescription: "Zero-trust local network scanner, ARP/ICMP device radar, ping monitor, and hardened SSH/Web service launcher for Omarchy Linux."
   property string pluginAuthor: "Ozan Özdil (ozdil)"
   property string pluginLicense: "MIT"
@@ -92,6 +92,10 @@ Panel {
     return typeof ip === "string" && /^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip.trim())
   }
 
+  function isValidMac(mac) {
+    return typeof mac === "string" && /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(mac.trim())
+  }
+
   function scan() {
     if (scanProc.running) return
     root.isScanning = true
@@ -103,6 +107,15 @@ Panel {
     if (!isValidIp(ip)) return
     pingProc.command = [root.resolveEnginePath(), "--ping", ip]
     pingProc.running = true
+  }
+
+  function toggleTrust(mac, currentTrust) {
+    if (!isValidMac(mac)) return
+    var flag = currentTrust ? "--untrust" : "--trust"
+    trustProc.command = [root.resolveEnginePath(), flag, mac]
+    trustProc.running = true
+    root.copyNotice = (currentTrust ? "Removed trust: " : "Trusted: ") + mac
+    copyNoticeTimer.restart()
   }
 
   function openWeb(ip, port) {
@@ -243,6 +256,13 @@ Panel {
     command: []
   }
 
+  Process {
+    id: trustProc
+    running: false
+    command: []
+    onExited: root.scan()
+  }
+
   Timer {
     id: copyNoticeTimer
     interval: 2500
@@ -345,6 +365,13 @@ Panel {
         } else if (t === "c" || t === "C") {
           if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
             root.copyText(root.filteredDevices[root.selectedIndex].ip, "IP")
+          }
+        } else if (t === "t" || t === "T") {
+          if (root.filteredDevices && root.filteredDevices[root.selectedIndex]) {
+            var dev = root.filteredDevices[root.selectedIndex]
+            if (dev && dev.mac && dev.mac !== "Self (Host)") {
+              root.toggleTrust(dev.mac, Boolean(dev.is_trusted))
+            }
           }
         }
       }
@@ -675,6 +702,29 @@ Panel {
                   }
                 }
 
+                // Trust Shield Icon / Toggle Button
+                Rectangle {
+                  visible: !modelData.is_local
+                  width: Style.space(22)
+                  height: Style.space(22)
+                  radius: Style.space(4)
+                  color: modelData.is_trusted ? Qt.rgba(0.65, 0.85, 0.58, 0.15) : "transparent"
+
+                  Text {
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: "󰒢"
+                    font.pixelSize: Style.font.caption
+                    color: modelData.is_trusted ? "#a6da95" : Color.muted
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleTrust(modelData.mac, modelData.is_trusted)
+                  }
+                }
+
                 // Status Dot
                 Rectangle {
                   width: Style.space(8)
@@ -840,7 +890,7 @@ Panel {
 
           Button {
             id: closeAboutBtn
-            text: "✕"
+            text: "x"
             bordered: true
             foreground: root.bar ? root.bar.foreground : Color.foreground
             fontFamily: root.fontFamily

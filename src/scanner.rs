@@ -241,17 +241,65 @@ pub const PER_HOST_DNS_TIMEOUT: Duration = Duration::from_millis(150);
 /// Maximum total duration budget for the entire scan operation.
 pub const MAX_TOTAL_SCAN_TIME: Duration = Duration::from_millis(4000);
 
+/// Safely discovers the local system hostname with fallback to /etc/hostname (bounded read).
+pub fn get_local_hostname() -> String {
+    if let Ok(name) = std::env::var("HOSTNAME") {
+        let trimmed = name.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+
+    if let Ok(file) = fs::File::open("/etc/hostname") {
+        use io::Read;
+        let mut reader = file.take(256);
+        let mut buf = String::new();
+        if reader.read_to_string(&mut buf).is_ok() {
+            let trimmed = buf.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+
+    "Omarchy Workstation".to_string()
+}
+
+/// Loads /etc/hosts static IP to hostname mappings once (bounded to 1 MiB).
+pub fn load_hosts_map() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    if let Ok(file) = fs::File::open("/etc/hosts") {
+        use io::Read;
+        let mut reader = file.take(1024 * 1024);
+        let mut hosts = String::new();
+        if reader.read_to_string(&mut hosts).is_ok() {
+            for line in hosts.lines() {
+                let line = line.trim();
+                if line.starts_with('#') || line.is_empty() {
+                    continue;
+                }
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    map.insert(parts[0].to_string(), parts[1].to_string());
+                }
+            }
+        }
+    }
+    map
+}
+
 /// Resolves IP to hostname using reverse DNS (getnameinfo) safely with strict timeout and fallback.
 #[allow(dead_code)]
 pub fn resolve_hostname(ip_str: &str) -> String {
     resolve_hostname_bounded(ip_str, PER_HOST_DNS_TIMEOUT)
 }
 
-/// Resolves IP to hostname within a bounded timeout:
-/// 1. Fast-path local lookup via `/etc/hosts` (bounded read, zero network delay).
-/// 2. If not found locally, performs cancellable/timed `getnameinfo()` in a bounded worker thread.
-/// 3. Returns empty string if the lookup times out, fails, or resolver hangs.
-pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
+/// Resolves IP to hostname within a bounded timeout with optional cached /etc/hosts map.
+pub fn resolve_hostname_with_cache(
+    ip_str: &str,
+    hosts_cache: Option<&HashMap<String, String>>,
+    timeout: Duration,
+) -> String {
     let Ok(ip) = ip_str.parse::<Ipv4Addr>() else {
         return String::new();
     };
@@ -260,8 +308,12 @@ pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
         return String::new();
     }
 
-    // Fast-path: Check /etc/hosts first (strictly local file read, bounded to 1 MiB)
-    if let Ok(file) = fs::File::open("/etc/hosts") {
+    // Fast-path: Check /etc/hosts cache if provided
+    if let Some(cache) = hosts_cache {
+        if let Some(host) = cache.get(ip_str) {
+            return host.clone();
+        }
+    } else if let Ok(file) = fs::File::open("/etc/hosts") {
         use io::Read;
         let mut reader = file.take(1024 * 1024);
         let mut hosts = String::new();
@@ -335,13 +387,15 @@ pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
     rx.recv_timeout(timeout).unwrap_or_default()
 }
 
-/// Triggers a fast, non-privileged subnet sweep on RFC 1918 /24 subnets to warm the kernel ARP table.
-/// Sends a single lightweight UDP datagram to port 5353 (mDNS) across the /24 range.
+/// Resolves IP to hostname within a bounded timeout.
+pub fn resolve_hostname_bounded(ip_str: &str, timeout: Duration) -> String {
+    resolve_hostname_with_cache(ip_str, None, timeout)
+}
+
+/// Triggers a fast, non-privileged subnet sweep on private RFC 1918 subnets to warm the kernel ARP table.
+/// Sends a single lightweight UDP datagram to port 5353 (mDNS) across the immediate /24 neighborhood.
 /// This causes the Linux kernel network stack to broadcast ARP queries for all local hosts without raw sockets.
-pub fn trigger_active_arp_sweep(local_ip_str: &str, subnet_mask: u8) {
-    if subnet_mask != 24 {
-        return;
-    }
+pub fn trigger_active_arp_sweep(local_ip_str: &str, _subnet_mask: u8) {
     let Ok(local_ip) = local_ip_str.parse::<Ipv4Addr>() else {
         return;
     };
@@ -365,7 +419,7 @@ pub fn trigger_active_arp_sweep(local_ip_str: &str, subnet_mask: u8) {
     }
 
     // Short grace period to allow local network stack to process ARP replies
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(Duration::from_millis(150));
 }
 
 /// Performs a non-blocking ping / latency probe for an IP address.
@@ -483,6 +537,16 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
     let mut gateway_mac = String::new();
     let mut new_devices_count = 0usize;
 
+    // Load static /etc/hosts cache once for the entire scan
+    let hosts_cache = load_hosts_map();
+
+    // Measure gateway latency if gateway is valid RFC 1918 IPv4
+    let gw_latency = if !gateway.is_empty() {
+        measure_latency(&gateway)
+    } else {
+        None
+    };
+
     // Add local machine as self device
     let self_services = if probe_gw_ports { probe_services(&local_ip) } else { Vec::new() };
     device_map.insert(
@@ -490,7 +554,7 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
         Device {
             ip: local_ip.clone(),
             mac: "Self (Host)".to_string(),
-            hostname: std::env::var("HOSTNAME").unwrap_or_else(|_| "Omarchy Workstation".to_string()),
+            hostname: get_local_hostname(),
             vendor: "Omarchy Linux Host".to_string(),
             category: "pc".to_string(),
             icon: "󰌢".to_string(),
@@ -560,7 +624,7 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
             let remaining_dns = MAX_DNS_SCAN_BUDGET.saturating_sub(dns_elapsed);
             let remaining_scan = MAX_TOTAL_SCAN_TIME.saturating_sub(scan_elapsed);
             let per_lookup_timeout = remaining_dns.min(remaining_scan).min(PER_HOST_DNS_TIMEOUT);
-            resolve_hostname_bounded(&ip, per_lookup_timeout)
+            resolve_hostname_with_cache(&ip, Some(&hosts_cache), per_lookup_timeout)
         } else {
             String::new()
         };
@@ -573,6 +637,8 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
             Vec::new()
         };
 
+        let latency = if is_gw { gw_latency } else { None };
+
         let device = Device {
             ip: ip.clone(),
             mac: mac.clone(),
@@ -580,7 +646,7 @@ pub fn perform_scan(probe_gw_ports: bool) -> io::Result<ScanResult> {
             vendor: vendor_name,
             category: category.to_string(),
             icon: icon.to_string(),
-            latency_ms: None,
+            latency_ms: latency,
             is_gateway: is_gw,
             is_local: false,
             state: state_str,

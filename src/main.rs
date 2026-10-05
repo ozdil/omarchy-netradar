@@ -4,7 +4,10 @@ use std::process;
 use netradar_engine::{scanner, security};
 
 fn print_usage() {
-    println!("NetRadar Engine v1.3.0 - Omarchy Linux Network Scanner & Radar");
+    println!(
+        "NetRadar Engine v{} - Omarchy Linux Network Scanner & Radar",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("Usage:");
     println!("  netradar-engine [OPTIONS]");
     println!();
@@ -19,6 +22,7 @@ fn print_usage() {
     println!("  --untrust <mac>        Remove device MAC from trusted whitelist");
     println!("  --traffic [iface]      Get raw byte counters from /proc/net/dev");
     println!("  --status               Print human-readable single-line network status");
+    println!("  --version, -v          Show version information");
     println!("  --help, -h             Show this help message");
 }
 
@@ -29,6 +33,10 @@ fn main() {
         match args[1].as_str() {
             "--help" | "-h" => {
                 print_usage();
+                return;
+            }
+            "--version" | "-v" => {
+                println!("netradar-engine {}", env!("CARGO_PKG_VERSION"));
                 return;
             }
             "--ping" => {
@@ -164,9 +172,14 @@ fn main() {
                     .args(["--", "ssh", "--", &ip_str])
                     .spawn();
                 if spawned.is_err() {
-                    let _ = std::process::Command::new("foot")
-                        .args(["ssh", "--", &ip_str])
+                    let _ = std::process::Command::new("ghostty")
+                        .args(["-e", "ssh", "--", &ip_str])
                         .spawn()
+                        .or_else(|_| {
+                            std::process::Command::new("foot")
+                                .args(["ssh", "--", &ip_str])
+                                .spawn()
+                        })
                         .or_else(|_| {
                             std::process::Command::new("alacritty")
                                 .args(["-e", "ssh", "--", &ip_str])
