@@ -2,7 +2,7 @@
 Name=NetRadar
 GenericName=Local Network Scanner & Device Radar
 Comment=Ultra-fast, secure local network scanner and device monitor for Omarchy Linux
-Exec=/usr/bin/netradar-dashboard
+Exec=netradar-dashboard
 Icon=network-wired
 Terminal=false
 Type=Application

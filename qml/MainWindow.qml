@@ -36,15 +36,15 @@ Rectangle {
     property real lastTrafficTime: 0
 
     function resolveEnginePath() {
-        var localBin = Qt.resolvedUrl("../netradar-engine").toString().replace(/^file:\/\//, "")
-        var home = Quickshell.env("HOME") || ""
-        if (localBin.length > 0) {
-            return localBin
+        var envBin = Quickshell.env("NETRADAR_ENGINE_BIN") || ""
+        if (envBin.length > 0) {
+            return envBin
         }
+        var home = Quickshell.env("HOME") || ""
         if (home.length > 0) {
             return home + "/.local/bin/netradar-engine"
         }
-        return "/usr/bin/netradar-engine"
+        return "netradar-engine"
     }
 
     function isValidMac(mac) {

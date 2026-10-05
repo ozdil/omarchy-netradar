@@ -4,24 +4,36 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="${HOME}/.local/bin/netradar-engine"
 SHARE_DIR="${HOME}/.local/share/omarchy-netradar"
+PLUGIN_DIR="${HOME}/.config/omarchy/plugins/ozdil.netradar"
+DEV_DIR="${HOME}/Projects/omarchy/omarchy-netradar"
 SYS_SHARE_DIR="/usr/share/omarchy-netradar"
 
 # Fallback to system bin or project target if not in ~/.local/bin
 if [[ ! -x "${BIN}" ]]; then
     if [[ -x "/usr/bin/netradar-engine" ]]; then
         BIN="/usr/bin/netradar-engine"
+    elif [[ -x "${DEV_DIR}/target/release/netradar-engine" ]]; then
+        BIN="${DEV_DIR}/target/release/netradar-engine"
     elif [[ -x "${SCRIPT_DIR}/target/release/netradar-engine" ]]; then
         BIN="${SCRIPT_DIR}/target/release/netradar-engine"
+    elif [[ -x "${SCRIPT_DIR}/netradar-engine" ]]; then
+        BIN="${SCRIPT_DIR}/netradar-engine"
     fi
 fi
 
-# Locate QML shell
+export NETRADAR_ENGINE_BIN="${BIN}"
+
+# Locate QML shell in order of preference
 if [[ -f "${SCRIPT_DIR}/qml/shell.qml" ]]; then
     SHELL_QML="${SCRIPT_DIR}/qml/shell.qml"
-elif [[ -f "${SYS_SHARE_DIR}/qml/shell.qml" ]]; then
-    SHELL_QML="${SYS_SHARE_DIR}/qml/shell.qml"
 elif [[ -f "${SHARE_DIR}/qml/shell.qml" ]]; then
     SHELL_QML="${SHARE_DIR}/qml/shell.qml"
+elif [[ -f "${PLUGIN_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${PLUGIN_DIR}/qml/shell.qml"
+elif [[ -f "${DEV_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${DEV_DIR}/qml/shell.qml"
+elif [[ -f "${SYS_SHARE_DIR}/qml/shell.qml" ]]; then
+    SHELL_QML="${SYS_SHARE_DIR}/qml/shell.qml"
 else
     SHELL_QML=""
 fi
@@ -31,9 +43,9 @@ if [[ $# -gt 0 ]]; then
     exec "${BIN}" "$@"
 fi
 
-# Try quickshell IPC toggle if already running
-if command -v quickshell >/dev/null 2>&1; then
-    if quickshell ipc call ozdil.netradar toggle >/dev/null 2>&1; then
+# Try toggling existing dashboard window if running
+if command -v quickshell >/dev/null 2>&1 && [[ -n "${SHELL_QML}" ]]; then
+    if quickshell ipc -p "${SHELL_QML}" call ozdil.netradar.window toggle >/dev/null 2>&1; then
         exit 0
     fi
 fi
