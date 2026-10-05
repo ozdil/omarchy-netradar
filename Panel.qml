@@ -30,7 +30,7 @@ Panel {
   readonly property string manifestFallbackPath: (Quickshell.env("HOME") || "/home/ozdil") + "/.config/omarchy/plugins/ozdil.netradar/manifest.json"
 
   property string pluginName: "NetRadar"
-  property string pluginVersion: "1.3.2"
+  property string pluginVersion: "1.3.3"
   property string pluginDescription: "Zero-trust local network scanner, ARP/ICMP device radar, ping monitor, and hardened SSH/Web service launcher for Omarchy Linux."
   property string pluginAuthor: "Ozan Özdil (ozdil)"
   property string pluginLicense: "MIT"

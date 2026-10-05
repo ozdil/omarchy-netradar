@@ -290,7 +290,7 @@ fn test_cli_version() {
         .expect("Failed to run cargo run --version");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("netradar-engine 1.3.2"));
+    assert!(stdout.contains("netradar-engine 1.3.3"));
 }
 
 #[test]

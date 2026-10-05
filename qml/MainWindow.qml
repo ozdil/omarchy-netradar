@@ -1114,7 +1114,7 @@ Rectangle {
 
             Text {
                 textFormat: Text.PlainText
-                text: "NetRadar v1.3.2 (MIT)"
+                text: "NetRadar v1.3.3 (MIT)"
                 font.pixelSize: 11
                 color: Theme.textDim
             }
