@@ -527,7 +527,7 @@ Rectangle {
                         font.pixelSize: 13
                     }
 
-                    TextField {
+                    BoundedTextInput {
                         id: searchInput
                         Layout.fillWidth: true
                         placeholderText: I18n.t("search_placeholder")
@@ -535,7 +535,8 @@ Rectangle {
                         color: Theme.textMain
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
-                        background: null
+                        verticalAlignment: TextEdit.AlignVCenter
+                        maxLength: 128
                         onTextChanged: root.searchQuery = text
                     }
 
@@ -701,7 +702,7 @@ Rectangle {
                                             elide: Text.ElideRight
                                         }
 
-                                        TextField {
+                                        BoundedTextInput {
                                             id: editInput
                                             visible: root.editingMac === modelData.mac
                                             anchors.fill: parent
@@ -709,7 +710,13 @@ Rectangle {
                                             color: Theme.textMain
                                             font.family: Theme.fontFamily
                                             font.pixelSize: 13
-                                            background: Rectangle {
+                                            verticalAlignment: TextEdit.AlignVCenter
+                                            leftPadding: 6
+                                            rightPadding: 6
+                                            maxLength: 64
+                                            Rectangle {
+                                                z: -1
+                                                anchors.fill: parent
                                                 color: Theme.bgSurface
                                                 border.color: Theme.accent
                                                 border.width: 1
