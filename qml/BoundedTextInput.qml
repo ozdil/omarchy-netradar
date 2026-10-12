@@ -14,7 +14,6 @@ TextEdit {
     property bool multiline: false
 
     signal accepted()
-    signal textEdited()
 
     wrapMode: multiline ? TextEdit.Wrap : TextEdit.NoWrap
     textFormat: TextEdit.PlainText

@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "qml"
 
 Panel {
   id: root
@@ -568,14 +569,19 @@ Panel {
               font.pixelSize: Style.font.subtext
             }
 
-            TextField {
+            // TextEdit-based bounded input: unlike TextField/TextInput, it does not
+            // read the full foreign clipboard text on every selection change, and
+            // paste is routed through a 4 KiB / 1 s bounded wl-paste process.
+            BoundedTextInput {
               id: searchInput
               Layout.fillWidth: true
+              verticalAlignment: TextEdit.AlignVCenter
               placeholderText: "Search IP, MAC, Hostname or Vendor..."
               placeholderTextColor: Color.muted
               color: root.bar ? root.bar.foreground : Color.foreground
+              font.family: root.fontFamily
               font.pixelSize: Style.font.subtext
-              background: null
+              maxLength: 256
               onTextChanged: root.searchQuery = text
             }
 
