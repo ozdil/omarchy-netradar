@@ -124,6 +124,26 @@ fn test_cli_input_validation_set_alias_invalid_mac() {
 }
 
 #[test]
+fn test_cli_set_alias_stdin() {
+    use std::io::Write;
+    let mut child = std::process::Command::new("cargo")
+        .args(["run", "--quiet", "--", "--set-alias", "11:22:33:44:55:66"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn process");
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(b"StdinDeviceAlias\n").unwrap();
+    }
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(output.status.success(), "Setting alias via stdin must succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("StdinDeviceAlias"));
+}
+
+#[test]
 fn test_cli_input_validation_trust_invalid_mac() {
     let output = std::process::Command::new("cargo")
         .args(["run", "--quiet", "--", "--trust", "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"])

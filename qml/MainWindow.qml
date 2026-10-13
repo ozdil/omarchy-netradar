@@ -81,10 +81,13 @@ Rectangle {
         trustProc.running = true
     }
 
+    property string pendingAliasPayload: ""
+
     function saveAlias(mac, alias) {
         if (!isValidMac(mac)) return
         var cleanAlias = String(alias || "").slice(0, 64)
-        aliasProc.command = [root.resolveEnginePath(), "--set-alias", mac, cleanAlias]
+        root.pendingAliasPayload = cleanAlias
+        aliasProc.command = [root.resolveEnginePath(), "--set-alias", mac]
         aliasProc.running = true
         root.editingMac = ""
     }
@@ -264,6 +267,13 @@ Rectangle {
         id: aliasProc
         running: false
         command: []
+        stdinEnabled: true
+        onStarted: {
+            if (root.pendingAliasPayload !== undefined) {
+                aliasProc.write(root.pendingAliasPayload + "\n")
+                root.pendingAliasPayload = ""
+            }
+        }
         onExited: root.scan()
     }
 

@@ -1,4 +1,5 @@
 use std::env;
+use std::io::{self, Read};
 use std::process;
 
 use netradar_engine::{scanner, security};
@@ -17,7 +18,7 @@ fn print_usage() {
     println!("  --probe <ip>           Probe common benign services (HTTP, HTTPS, SSH, WebUI) on IP");
     println!("  --ssh <ip>             Launch terminal SSH session to target IP");
     println!("  --web <ip> [port]      Open web interface in default browser");
-    println!("  --set-alias <mac> <alias> Set persistent nickname/alias for a device MAC");
+    println!("  --set-alias <mac> [alias] Set persistent nickname/alias for a device MAC (via stdin if omitted)");
     println!("  --trust <mac>          Mark device MAC as trusted (whitelist)");
     println!("  --untrust <mac>        Remove device MAC from trusted whitelist");
     println!("  --traffic [iface]      Get raw byte counters from /proc/net/dev");
@@ -84,21 +85,31 @@ fn main() {
                 return;
             }
             "--set-alias" => {
-                if args.len() < 4 {
-                    eprintln!("Error: Missing MAC or alias. Usage: --set-alias <mac> <alias>");
+                if args.len() < 3 {
+                    eprintln!("Error: Missing MAC. Usage: --set-alias <mac> [alias]");
                     process::exit(1);
                 }
                 let mac = &args[2];
-                let alias = &args[3];
+                let alias = if args.len() >= 4 {
+                    args[3].clone()
+                } else {
+                    let mut input = String::new();
+                    let mut handle = io::stdin().take(256);
+                    if let Err(e) = handle.read_to_string(&mut input) {
+                        eprintln!("Error reading alias from stdin: {}", e);
+                        process::exit(1);
+                    }
+                    input.trim_end_matches(['\r', '\n']).to_string()
+                };
                 if !security::is_valid_mac(mac) {
                     eprintln!("Error: Invalid MAC address format (expected AA:BB:CC:DD:EE:FF)");
                     process::exit(1);
                 }
-                if !alias.trim().is_empty() && !security::is_valid_alias(alias) {
+                if !alias.trim().is_empty() && !security::is_valid_alias(&alias) {
                     eprintln!("Error: Invalid alias (maximum 64 characters, no control characters)");
                     process::exit(1);
                 }
-                if let Err(e) = scanner::save_alias(mac, alias) {
+                if let Err(e) = scanner::save_alias(mac, &alias) {
                     eprintln!("Failed to save alias: {}", e);
                     process::exit(1);
                 }
