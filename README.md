@@ -104,12 +104,6 @@ install -Dm755 netradar-status ~/.local/bin/netradar-status
 install -Dm644 netradar.desktop ~/.local/share/applications/netradar.desktop
 ```
 
-### Arch Linux / Omarchy (PKGBUILD)
-
-```bash
-makepkg -si
-```
-
 ---
 
 ## CLI Usage
